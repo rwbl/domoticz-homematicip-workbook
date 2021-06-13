@@ -1,4 +1,4 @@
 # ChangeLog domoticz-homematicip-workbook
 
-### 20210218
-* NEW: Started with some first ideas
+### 20210610
+* NEW: Published v1.0
