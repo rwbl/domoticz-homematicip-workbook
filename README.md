@@ -13,8 +13,8 @@ Whilst evolving, new devices will be added step-by-step or solutions reworked - 
 The examples are based on good-practise by the author. It does not mean that there are other and probably better ways.
 
 There are two key chapters:
-* Functions - describing dedicated solutions with Homematic IP devices
-* Explore - looking into ways of using API's & communication between the CCU and Domoticz
+* **Functions** - describing dedicated solutions with Homematic IP devices
+* **Explore** - looking into ways of using API's & communication between the CCU and Domoticz
 
 Following Homematic IP devices are used (so far):
 
@@ -35,7 +35,7 @@ Following Homematic IP devices are used (so far):
 * The devices to control Homematic devices are mainly virtual devices (Hardware type "Dummy").
 * The Automation Events are developed in [dzVents](https://www.domoticz.com/wiki/DzVents:_next_generation_Lua_scripting) - Domoticz next generation Lua scripting.
 * The [Plugins](https://www.domoticz.com/wiki/Developing_a_Python_plugin) in [Python 3](https://www.python.org/).
-* The communication between Domoticz and the CCU v.v. is handled via HTTP XML- or REST-API requests with the CCU Addons XML-API, CCU-Jack and CUx-Daemon.
+* The communication between Domoticz and the CCU v.v. is handled via HTTP XML- or REST-API requests with the CCU Addons XML-API, CCU-Jack and CUx-Daemon, but also xplored the Homematic JSON-API.
 
 ### Other
 * [Node-RED](https://nodered.org/) used for tests and some tools.
