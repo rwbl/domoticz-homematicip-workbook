@@ -26,7 +26,7 @@ Functions with Homematic IP devices:
 * Garage Door Monitor (HmIP-SWDM, Window / Door Contact - magnet)
 * Heating Unit Gas Usage (HmIP-FCI1, Contact Interface flush-mount, 1 channel )
 * Heating Unit Temperature (HmIP-STE2-PCB, 2-channel-Temperature Sensor )
-* HM-RC-19 = CUx Daemon (CUx-D), interface between CCU-Logic (ReGa HSS) and external (incl. virtúal) devices
+* HM-RC-19 = CUx Daemon (CUx-D), interface between CCU-Logic (ReGa HSS) and external (incl. virtual) devices
 * Duty-Cycle Monitor (HmIP-CCU3 Device Object)
 * Pluggable Switch and Meter (HmIP-PSM, Pluggable Switch and Meter)
 * Postbox Notifier (HmIP-SWDO, Window / Door Contact optical)
