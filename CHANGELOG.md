@@ -1,5 +1,9 @@
 # ChangeLog domoticz-homematicip-workbook
 
+## 20230129
+* UPD: Explore XML-RPC API - Reworked chapter; Node-RED example script Function Node; Added Python example Get System Variable.
+* UPD: Minor changes.
+
 ## 20230122
 * NEW: Function Heating Unit Gas Usage (HmIP-FCI1) - Measure the gas meter counter.
 * NEW: Function Heating Unit Temperature (HmIP-STE2-PCB) - Measure heating flow and return temperatures.
