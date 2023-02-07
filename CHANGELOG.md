@@ -1,8 +1,10 @@
 # ChangeLog domoticz-homematicip-workbook
 
-## 20230129
-* UPD: Explore XML-RPC API - Reworked chapter; Node-RED example script Function Node; Added Python example Get System Variable.
-* UPD: Minor changes.
+## 20230207
+* NEW: Function Radiator Thermostats (HmIP-eTRV) - Domoticz Automation Event dzVents to get thermostat attributes and to set setpoints using embedded Homematic Scripts which are submitted to the CCU.
+* NEW: Explore Remote Homematic Script API - Added Domoticz, Node-RED & Python examples.
+* UPD: Explore XML-RPC API - Renamed to Explore Remote Homematic Script API; Reworked the chapter.
+* UPD: Polished up several chapters.
 
 ## 20230122
 * NEW: Function Heating Unit Gas Usage (HmIP-FCI1) - Measure the gas meter counter.
