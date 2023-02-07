@@ -38,7 +38,7 @@ Functions with Homematic IP devices:
 * The devices to control Homematic devices are mainly virtual devices (Hardware type "Dummy").
 * The Automation Events are developed in [dzVents](https://www.domoticz.com/wiki/DzVents:_next_generation_Lua_scripting) - Domoticz next generation Lua scripting.
 * The [Plugins](https://www.domoticz.com/wiki/Developing_a_Python_plugin) in [Python 3](https://www.python.org/).
-* The communication between Domoticz and the CCU3 v.v. is handled via HTTP XML- or REST-API requests with the CCU Addons XML-API, CCU-Jack and CUx-Daemon, but also explored the Homematic JSON-API and XML-RPC-API.
+* The communication between Domoticz and the CCU3 v.v. is handled via HTTP XML- or REST-API requests with the CCU Addons XML-API, CCU-Jack and CUx-Daemon, but also explored the Homematic JSON-API, Remote Homematic Script API and XML-RPC-API.
 
 ### Other
 * [Node-RED](https://nodered.org/) used for tests and some tools.
