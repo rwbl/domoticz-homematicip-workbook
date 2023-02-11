@@ -11,9 +11,10 @@ This *work-in-progress* document has been developed for personal use to explore,
 
 ### Overview
 Described are various ways on how to integrate Homematic IP devices (connected to the CCU) in Domoticz.
-Homematic offers a variety of devices. This document covers the ones used by the author.
-Whilst evolving, new devices will be added step-by-step or solutions reworked - and captured in this document.
-The examples are based on good-practise by the author. It does not mean that there are other and probably better ways.
+Homematic offers a variety of devices.  
+This document covers only the Homematic device used by the author.  
+Whilst evolving, new devices will be added step-by-step or solutions reworked - and captured in this document.  
+The examples are based on good-practice by the author. It does not mean that there are other and probably better ways.
 
 There are two key chapters:
 * **Functions** - describing dedicated solutions with Homematic IP devices
