@@ -6,6 +6,7 @@ This guide has been developed for personal use only.
 ### Purpose
 To integrate the [HomeMatic](https://www.homematic.com) Smart Home [Central Control Unit (HmIP-CCU3)](https://www.eq-3.com/products/homematic/detail/smart-home-central-control-unit-ccu3.html) in [Domoticz](https://www.domoticz.com/) Home Automation System.
 It is an addendum to the [Domoticz Homeautomation Workbook](https://github.com/rwbl/domoticz-homeautomation-workbook).
+
 This *work-in-progress* document has been developed for personal use to explore, build, share and as a supplemental reference - use at your own risk.
 
 ### Overview
