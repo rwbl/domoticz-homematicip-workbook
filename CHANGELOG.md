@@ -1,10 +1,10 @@
 # ChangeLog domoticz-homematicip-workbook
 
-## 20230210
+## 20230211
 * NEW: Function Battery Check - Remote Homematic Script solutions Timer (explored) / Push On Button (explored) / Selector Switch (in use) embedded in dzVents script.
 * NEW: Function Radiator Thermostats (HmIP-eTRV) - Domoticz Automation Event dzVents to get thermostat attributes and to set setpoints using embedded Homematic Scripts which are submitted to the CCU.
 * UPD: Explore XML-RPC API - Renamed to Explore Remote Homematic Script API.
-* UPD: Explore Remote Homematic Script - Reworked the chapter; Added Domoticz, Node-RED & Python examples.
+* UPD: Explore Remote Homematic Script API - Reworked the chapter; Added Domoticz, Node-RED & Python examples.
 * UPD: Polished up several chapters.
 
 ## 20230122

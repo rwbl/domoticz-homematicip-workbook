@@ -7,3 +7,8 @@ Display the arrow up and down, which are special characters.
 If trend icons are used, then no other icons can be displayed.
 #### Status
 Not started.
+
+### NEW: HmIP-HAP Test Communication
+Explore how to communicate between the Homeatic Access Point HmIP-HAP and Domoticz = not sure yet if possible.
+#### Status
+Not started.
