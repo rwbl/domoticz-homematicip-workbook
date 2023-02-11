@@ -5,12 +5,11 @@ This guide has been developed for personal use only.
 
 ### Purpose
 To integrate the [HomeMatic](https://www.homematic.com) Smart Home [Central Control Unit (HmIP-CCU3)](https://www.eq-3.com/products/homematic/detail/smart-home-central-control-unit-ccu3.html) in [Domoticz](https://www.domoticz.com/) Home Automation System.
-It is an addendum to the [Domoticz Homeautomation Workbook](https://github.com/rwbl/domoticz-homeautomation-workbook).
-
+It is an addendum to the [Domoticz Homeautomation Workbook](https://github.com/rwbl/domoticz-homeautomation-workbook).  
 This *work-in-progress* document has been developed for personal use to explore, build, share and as a supplemental reference - use at your own risk.
 
 ### Overview
-Described are various ways on how to integrate Homematic IP devices (connected to the CCU) in Domoticz.
+Described are various ways on how to integrate Homematic IP devices (connected to the CCU) in Domoticz.  
 Homematic offers a variety of devices.  
 This document covers only the Homematic device used by the author.  
 Whilst evolving, new devices will be added step-by-step or solutions reworked - and captured in this document.  
