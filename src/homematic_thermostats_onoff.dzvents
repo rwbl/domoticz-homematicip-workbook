@@ -1,0 +1,48 @@
+--[[
+File:           homematic_thermostats_onoff.dzvents
+Date:           20230524
+Author:         Robert W.B. Linn
+Trigger:        devices
+Dependencies:   event homematic_thermostat_setpoint
+Description:
+Switch ALL thermostats on or off triggered by an ON OFF Switch.
+The setpoint values for on or off are defined by two uservariables.
+Changing the domoticz device setpoint triggers updating the homematic thermostat via the event homematic_thermostat_setsetpoint.
+]]--
+-- IDX of the switch to turn all thermostats on/off
+local IDX_SWITCH_THERMOSTATS = 389
+-- User variables with the temperatures to set for on/off
+local IDX_DEF_THERMOSTAT_ON = 21;   
+local IDX_DEF_THERMOSTAT_OFF = 22;  
+-- Identifier for a domoticz thermostat device
+local DEVTYPE_THERMOSTAT = 'Thermostat'
+-- Logging
+local LOG_MARKER = 'HOMEMATIC_THERMOSTATS_ONOFF'
+return {
+	on = {
+		devices = { IDX_SWITCH_THERMOSTATS }
+	},
+	logging = { level = domoticz.LOG_INFO, marker = LOG_MARKER, },
+	execute = function(domoticz, device)
+		domoticz.log('Device ' .. device.name .. ' was changed', domoticz.LOG_INFO)
+		local message
+		local setpoint = 0
+		-- Set the setpoint from the user variable depending switch state
+		if device.state == 'On' then
+            setpoint = domoticz.variables(IDX_DEF_THERMOSTAT_ON).value;
+        else
+            setpoint = domoticz.variables(IDX_DEF_THERMOSTAT_OFF).value;
+	    end
+ 
+        -- Loop over all devices, select the thermostat device (Type) and set the temperature
+	    domoticz.devices().forEach(function(device)
+            if (device.deviceType == DEVTYPE_THERMOSTAT) then
+                -- Update the domoticz device setpoint which triggers updating homematic via the event homematic_thermostat_setpoint
+                -- if device.idx == 336 then
+                domoticz.devices(device.idx).updateSetPoint(setpoint).afterSec(2)
+                domoticz.log(string.format("Thermostat %s setpoint changed to %.2f.", device.name, setpoint))
+                -- end
+            end
+        end)
+	end
+}

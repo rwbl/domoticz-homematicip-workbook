@@ -1,0 +1,65 @@
+--[[
+File:           homematic_dutycycle_monitor.dzvents
+Date:           20230524
+Author:         Robert W.B. Linn
+Trigger:        timer, httpresponses
+Dependencies:   XML-API
+Description:
+Perform regular checks on the Homematic Device Object HmIP-CCU3 datapoint type="DUTY_CYCLE_LEVEL" ise_id="5963" valuetype="4" valueunit="%".
+Note: This Device Object requires Homematic CCU3 Firmware 3.67.10.
+The threshold (in pct) to send an alert message and logerror is set by uservariable TH_HOMEMATIC_DUTYCYCLE.
+]]--
+-- Set the loglevel
+local LOG_LEVEL = domoticz.LOG_INFO --domoticz.LOG_DEBUG
+-- Homematic
+local DATAPOINT_ISE_ID = 5963;
+-- url http xml-api request to get the value of a datapoint with ise_id. The ise_id is set in the function openURL.
+-- http response example: <state><datapoint ise_id="5963" value="29.500000"/></state>
+local URL_XMLAPI = 'http://ccu-ip:port/addons/xmlapi/state.cgi?datapoint_id=';
+-- define the unique (across all dzVents) callback
+local RES_XMLAPI = "RES_HOMEMATIC_DUTYCYCLE_MONITOR";
+-- Domoticz dutycycle device (Custom Sensor, type=General, subtype=Percentage)
+local IDX_HOMEMATIC_DUTYCYCLE = 301;
+-- set the alert message if dutycycle value is above threshold as set by uservariable TH_HOMEMATIC_DUTYCYCLE
+-- (idx,name,type,value): 23, TH_HOMEMATIC_DUTYCYCLE, Integer, 10
+local IDX_UV_TH_HOMEMATIC_DUTYCYCLE = 23
+-- Timer interval
+local TIMERRULE = 'every 15 minutes' 
+-- local TIMERRULE = 'every minute' 
+return {
+	on = { 
+	    timer = { TIMERRULE }, 
+	    httpResponses = { RES_XMLAPI } 
+    },
+	logging = { 
+	    level = LOG_LEVEL, marker = RES_XMLAPI
+    },	
+	execute = function(domoticz, item)
+        -- check if the triggered item is the timer, then request information
+		if (item.isTimer) then
+		    -- Homematic url http restapi request
+		    domoticz.openURL({url = URL_XMLAPI .. DATAPOINT_ISE_ID, method = 'GET', callback = RES_XMLAPI})
+		end
+        -- Check if the item is a httpresponse from the openurl callback
+        -- Select the callback - in this case there is only one (but for any next developments here might be more)
+		if (item.isHTTPResponse) then
+			if (item.statusCode == 200) then
+                if (item.callback == RES_XMLAPI) then
+                    -- Get the key value from the http response: <state><datapoint ise_id="5963" value="29.500000"/></state>
+					local dutycycle = tonumber(domoticz_applyXPath(item.data,'//datapoint[@ise_id="'..DATAPOINT_ISE_ID..'"]/@value'))
+                    domoticz.devices(IDX_HOMEMATIC_DUTYCYCLE).updatePercentage(dutycycle);
+                    -- Get the threshold
+                    local threshold = domoticz.variables(IDX_UV_TH_HOMEMATIC_DUTYCYCLE).value
+                    local message = ('HomeMatic DutyCycle %.0f%% (%d%%) (%s)'):format(dutycycle, threshold, domoticz.helpers.isnowshort(domoticz));
+                    domoticz.log(message)
+                    -- Check the actual value against the threshold
+                    if dutycycle > threshold then
+                        domoticz.helpers.alertmsg(domoticz, domoticz.ALERTLEVEL_RED, message)
+                    end
+                end
+			else
+				domoticz.log('[ERROR] HomeMatic DutyCycle Request:' .. item.statusText, domoticz.LOG_ERROR)
+			end
+		end
+    end
+}

@@ -1,0 +1,47 @@
+--[[
+File:           homematic_psm_switch_timer.dzvents
+Date:           20230522
+Author:         Robert W.B. Linn
+Trigger:        timer
+Dependencies:   XML-API, homematic-psm-switch-SCRIPT.dzvents. SCRIPT like homematic-psm-switch-ccujack.dzVents or homematic-psm-switch-remote-api.dzVents
+Description:
+Switch am HmIP-PSM ON/OFF (Datapoint STATE true/false) at specififc time.
+Domoticz Log
+2023-05-22 11:12:00.272 Status: dzVents: Info: ------ Start internal script: homematic-psm-switch-timer:, trigger: "at 11:12"
+2023-05-22 11:12:00.283 Status: dzVents: Info: ------ Finished homematic-psm-switch-timer
+2023-05-22 11:12:00.283 Status: EventSystem: Script event triggered: /home/pi/domoticz/dzVents/runtime/dzVents.lua
+2023-05-22 11:12:00.353 Status: dzVents: Info: Handling events for: "ButtonControl", value: "On"
+2023-05-22 11:12:00.353 Status: dzVents: Info: ------ Start internal script: homematic-psm-switch-ccujack: Device: "ButtonControl (VirtualSensors)", Index: 16
+2023-05-22 11:12:00.353 Status: dzVents: Info: ------ Finished homematic-psm-switch-ccujack
+2023-05-22 11:12:00.353 Status: EventSystem: Script event triggered: /home/pi/domoticz/dzVents/runtime/dzVents.lua
+2023-05-22 11:12:00.617 Status: dzVents: Info: Handling httpResponse-events for: "PSM-MAKELAB"
+2023-05-22 11:12:00.617 Status: dzVents: Info: ------ Start internal script: homematic-psm-switch-ccujack: HTTPResponse: "PSM-MAKELAB"
+2023-05-22 11:12:00.617 Status: dzVents: Info: Status: OK
+2023-05-22 11:12:00.618 Status: dzVents: Info: ------ Finished homematic-psm-switch-ccujack
+2023-05-22 11:13:00.320 Status: dzVents: Info: ------ Start internal script: homematic-psm-switch-timer:, trigger: "at 11:13"
+2023-05-22 11:13:00.336 Status: dzVents: Info: ------ Finished homematic-psm-switch-timer
+2023-05-22 11:13:00.337 Status: EventSystem: Script event triggered: /home/pi/domoticz/dzVents/runtime/dzVents.lua
+2023-05-22 11:13:00.411 Status: dzVents: Info: Handling events for: "ButtonControl", value: "Off"
+2023-05-22 11:13:00.412 Status: dzVents: Info: ------ Start internal script: homematic-psm-switch-ccujack: Device: "ButtonControl (VirtualSensors)", Index: 16
+2023-05-22 11:13:00.412 Status: dzVents: Info: ------ Finished homematic-psm-switch-ccujack
+2023-05-22 11:13:00.412 Status: EventSystem: Script event triggered: /home/pi/domoticz/dzVents/runtime/dzVents.lua
+2023-05-22 11:13:00.664 Status: dzVents: Info: Handling httpResponse-events for: "PSM-MAKELAB"
+2023-05-22 11:13:00.664 Status: dzVents: Info: ------ Start internal script: homematic-psm-switch-ccujack: HTTPResponse: "PSM-MAKELAB"
+2023-05-22 11:13:00.664 Status: dzVents: Info: Status: OK
+2023-05-22 11:13:00.664 Status: dzVents: Info: ------ Finished homematic-psm-switch-ccujack 
+]]--
+-- IDX of the Domoticz switch device which is triggered by the timer.
+local IDX_SWITCH = 16
+-- Two timer rules required for on/off. Times below used for testing on/off.
+local TIMERRULE_ON = 'at 11:12'
+local TIMERRULE_OFF = 'at 11:13'
+return {
+	on = { timer = {TIMERRULE_ON, TIMERRULE_OFF} },
+    logging = { level = domoticz.LOG_INFO },
+	execute = function(domoticz, item)
+		if (item.isTimer) then 
+		    if (item.trigger == TIMERRULE_ON) then domoticz.devices(IDX_SWITCH).switchOn() end
+		    if (item.trigger == TIMERRULE_OFF) then domoticz.devices(IDX_SWITCH).switchOff() end
+        end
+	end
+}

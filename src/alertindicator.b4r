@@ -1,0 +1,91 @@
+﻿Build1=Default,B4RDev
+Group=Default Group
+Library1=rcore
+NumberOfFiles=0
+NumberOfLibraries=1
+NumberOfModules=0
+Version=3.9
+@EndOfDesignText@
+#Region Project Notes
+' File: alertindicator.b4r
+' Date: 20210319
+' Author: Robert W.B. Linn
+'
+' Homematic HmIP-MOD-OC8
+' Set LED Blinking state on / off via Homematic WebUI or XML-API using HmIP-MOD-OC8 Out 1
+' HmIP-MOD-OC8 000D1BE9A4E733:10 - Switch actuator
+'
+' Hardware:
+' Arduino UNO, HmIP-MOD-OC8
+#End Region
+#Region Wiring
+' HmIP-MOD-OC8 = Arduino UNO
+' OUT 1 = PIN 2 (GPIO2)
+' OUT 2 = PIN 4 (GPIO4)
+' OUT 3 = PIN 7 (GPIO7)
+' LED = Arduino UNO
+' (+) > R330Ohm = PIN 8 (GPIO8) RED
+' (-) = GND
+' (+) > R330Ohm = PIN 9 (GPIO9) GREEN
+' (-) = GND
+' (+) > R330Ohm = PIN 10 (GPIO10) BLUE
+' (-) = GND
+#End Region
+#Region Project Attributes
+	#AutoFlushLogs: True
+	#StackBufferSize: 300
+#End Region
+Sub Process_Globals
+	Private VERSION As String = "Alert Indicator HmIP-MOD-OC8 v20210322"
+	Public Serial1 As Serial
+	Private Const OUTCHANNELS As Byte = 3
+	Private ledPin(3) As Pin
+	Private ledPinNr(3) As Byte = Array As Byte(0x08, 0x09, 0x0A)
+	Private btnPin(3) As Pin
+	Private btnPinNr(3) As Byte = Array As Byte(0x02, 0x04, 0x07)
+End Sub
+Private Sub Init_LEDs
+	Dim i As Int
+	For i = 0 To OUTCHANNELS - 1
+		ledPin(i).Initialize(ledPinNr(i), ledPin(i).MODE_OUTPUT)
+		ledPin(i).DigitalWrite(False)		
+	Next
+End Sub
+'Init the button pin. Using the internal pull up resistor to prevent the pin from floating.
+Private Sub Init_Buttons
+	Dim i As Int
+	For i = 0 To OUTCHANNELS - 1
+		btnPin(i).Initialize(btnPinNr(i), btnPin(i).MODE_INPUT_PULLUP)
+		btnPin(i).AddListener("Btn_StateChanged")
+	Next
+End Sub
+'Get the button position index from the array. This position is used to get the led from the led array.
+'Basically a mapping ledPinNr(8,9,10) = btnPinNr(2,4,7)
+'Example <code>
+'Dim ledPinNrIndex As Byte = GetButtonIndex(btn.PinNumber)
+'</code>
+Private Sub GetButtonIndex(PinNr As Byte) As Byte
+	Dim i As Int
+	For i = 0 To OUTCHANNELS - 1
+		If btnPinNr(i) = PinNr Then
+			Log("Found:",btnPinNr(i), "=",PinNr,",Result:",i)
+			Return i
+		End If
+	Next
+	Return -1		
+End Sub
+Private Sub AppStart
+	Serial1.Initialize(115200)
+   	Log(VERSION)
+	Init_LEDs
+	Init_Buttons	
+End Sub
+'Handle button state changed. 
+'This is a pushbutton, means when pressing the button the LED will be turned on, when releasing again the LED is turned OFF.
+'The state will be false when the button is clicked because of the PULLUP mode.
+Sub Btn_StateChanged (State As Boolean)
+	Dim btn As Pin = Sender
+	Dim ledPinNrIndex As Byte = GetButtonIndex(btn.PinNumber)
+	ledPin(ledPinNrIndex).DigitalWrite(Not(State))
+	Log("Button: ", btn.PinNumber, ", State:", State, ",LED:",ledPin(ledPinNrIndex).PinNumber)
+End Sub

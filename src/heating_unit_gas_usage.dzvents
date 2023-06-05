@@ -1,0 +1,65 @@
+--[[
+File:           heating_unit_gas_usage.dzvents
+Date:           20230524
+Author:         Robert W.B. Linn
+Trigger:        devices
+Dependencies:   
+Description:
+Updates the custom devices for the Gas Usage Per Year (m3) and the Gas Usage Per Day (m3/day).
+The gas usage is calculated from a domestic meter reading (m3) compared from the last reported meter reading (m3).
+The formula to convert m3 to kWh: GAS M3 * 0.9695 * 11.414
+There are two user variables holding the last reported meter & actual reading (m3).
+IMPORTANT
+1. Due to gasmeter replaced starting with 0 added an offset (26326) to the actual reading of IDX_GAS_USAGE_COUNTER. This must be removed 20230101 (20230101: done, set to 0).
+2. Check the function convertGasM3ToKWH if the factors have changed by the gas supplier.
+]]--
+-- Custom devices
+local IDX_GASUSAGE_COUNTER = 395
+local IDX_GASUSAGE_DAY = 374
+local IDX_GASUSAGE_YEAR = 373
+local IDX_GASUSAGE_METER = 396
+-- User vars
+local IDX_UV_GAS_USAGE_METER_BASE = 28   -- Holds the last reported meter reading counter
+local IDX_UV_GAS_USAGE_METER = 30        -- NOT USED Holds the actual meter reading counter; Replaced by counter device IDX=395
+-- Counter offset
+local GASUSAGE_COUNTER_OFFSET = 0
+-- Logging
+local LOG_MARKER = 'HEATING_UNIT_GAS_USAGE'
+-- Round a number to n decimals
+-- Returns rounded number
+local function roundNumber(number, decimals)
+    local power = 10^decimals
+    return math.floor(number * power) / power
+end
+    
+-- Convert gas M3 to KWH.
+local function convertGasM3ToKWH(value)
+    return roundNumber(value * 0.9695 * 11.414, 0)
+end
+        
+return {
+	on      = { devices = { IDX_GASUSAGE_COUNTER } },
+	
+	logging = { level = domoticz.LOG_INFO, marker = LOG_MARKER, },
+	execute = function(domoticz, device)
+		domoticz.log(("Device %s changed: value=%d"):format(device.name, device.sValue), domoticz.LOG_INFO)
+        -- Get the day of the year
+		local dayofyear = os.date("*t").yday
+        -- Get the counter value displayed on the meter and the meter reading base (=last reported meter reading)
+        -- The counter value is stored in sValue (i.e. 53000 m3) and needs to be divided by 1000
+        -- Remove offset as from next year 20230101
+		local meterreading      = (device.sValue / 1000) + GASUSAGE_COUNTER_OFFSET;
+		local meterreadingbase  = domoticz.variables(IDX_UV_GAS_USAGE_METER_BASE).value
+		-- Get the gas usage as difference between the two meter readings
+		local usageyear = meterreading - meterreadingbase
+		local usageperday = 0
+		-- Update usageyear & usageperday
+		if usageyear >= 0 and dayofyear > 0 then
+	        domoticz.devices(IDX_GASUSAGE_YEAR).updateCustomSensor(convertGasM3ToKWH(usageyear))
+		    usageperday = usageyear / dayofyear
+		    domoticz.devices(IDX_GASUSAGE_DAY).updateCustomSensor(convertGasM3ToKWH(usageperday))
+		    domoticz.devices(IDX_GASUSAGE_METER).updateCustomSensor(usageyear)
+		end
+		domoticz.log(("dayofyear=%d, meterreading=%.01f m3, usageyear=%.01f kWh, usageperday=%.01f kWh/day"):format(dayofyear, meterreading, convertGasM3ToKWH(usageyear), convertGasM3ToKWH(usageperday)))
+	end
+}

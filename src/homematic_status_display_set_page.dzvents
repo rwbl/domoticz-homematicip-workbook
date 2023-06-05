@@ -1,0 +1,287 @@
+--[[
+File:           homematic_status_display_set_page.dzvents
+Date:           20230524
+Author:         Robert W.B. Linn
+Trigger:        timer, customEvents, httpResponses, devices = { IDX_STATUSDISPLAYPAGE }
+Dependencies:   XML-API
+Description:
+Set the page of the homematic status display HmIP-WRCD.
+There are 3 triggers:
+Customevent - Homematic - Handles the channel data: {"channel":"HmIP-WRCD 002A5D8989D599:2","buttonnr":2}. The channel attribute is for info only.
+Timer - Domoticz - Updates the weather page in regular intervals (see TIMERRULE)
+Selector Switch - Domoticz - Select a page (do not switch to fast between pages, the device needs time to update)
+Page Configuration
+The pages are defined in a lua table array with elements describing each page.
+n - Page Number = 1,2
+rowN - describes the rows N 1-5
+    text - text to display (mandatory)
+        Get the device value from the device attribute rawData (Table). By default the first table element is taken.
+        Examples are Temp+Hum = {"14.6", "71", "3"}, Airpressure = {"1026", "1"}. The last element "status" is not used.
+        Placeholders: #DATETIME# (current date in format DD-MM HH:MM), #DATE# (current date YYYY-MM-DD),#TIME# (current time HH:MM), #NAME# (domoticz device name).
+    idx - domoticz device idx from which attribute rawData is used (mandatory)
+    index - Index of the rawdata entry. Start with 1.
+    icon - icon number according the HmIP-WRCD documentation (mandatory)
+    bc - Background color WHITE or BLACK (optional)
+    tc - Text color WHITE or BLACK (optional)
+The last row holds the commit command DDC=true.
+Special Page
+There is a special page setPageWeather.
+// Workout other special pages
+The display is updated by submitting an HTTP XML-API GET request to the CCU to update the system variable "StatusDisplayCombinedParameter" (sysvar ise_id 5097).
+Example data: {DDBC=BLACK,DDTC=WHITE,DDI=0,DDA=CENTER,DDS=WETTER,DDID=1},{DDBC=WHITE,DDTC=BLACK,DDI=0,DDA=LEFT,DDS= T C: 16.4,DDID=2},{DDBC=WHITE,DDTC=BLACK,DDI=0,DDA=LEFT,DDS= RH %: 77,DDID=3},{DDBC=WHITE,DDTC=BLACK,DDI=10,DDA=LEFT,DDS= P hPa: 1016,DDID=4},{DDBC=WHITE,DDTC=BLACK,DDI=0,DDA=CENTER,DDS=23.05 14:00,DDID=5,DDC=true} 
+In the URL submitted, the new_value characters comma and space have to be encoded by %2C and %20.
+The sysvar holds the channel attribute COMBINED_PARAMETER.
+The CCU program "Status Display Update" runs when the sysvar 5097 gets updated.
+The script assigned to the CCU program, updates the HmIP-WRCD device state with the COMBINED_PARAMETER content.
+]]--
+-- Domoticz selector switch to select a page - page 1=level 10,page 2=level 20
+local IDX_STATUSDISPLAYPAGE = 371
+-- Set the combined parameter via the sysvar which triggers an homematic script to update the hmip-wrcd
+local URL_XMLAPI = 'http://ccu-ip:port/addons/xmlapi/statechange.cgi?ise_id=5097&new_value='
+-- HTTP unique response
+local RES_XMLAPI = 'RES_HOMEMATIC_STATUS_DISPLAY_SET_PAGE'
+-- Custom event triggered by the homematic script
+local CUSTOMEVENT = 'homematic_status_display_set_page'
+-- Define the devices for the pages
+local MAXPAGES      = 2
+local WEATHERPAGE   = 1
+local GASPAGE       = 2
+local POWERPAGE     = 3
+local INFOPAGE      = 4
+local COVIDPAGE     = 5
+-- idx=0 - device not used; icon=0 - no icon; text=space - delete line; text can be used to set prefix info.
+local pages = {
+    {nr = WEATHERPAGE, 
+        row1={text='Wetter',idx=0,icon=0,bc='BLACK',tc='WHITE'}, 
+        row2={text='Temp: ',idx=344,icon=0,index=1,align='CENTER'}, 
+        row3={text='Feuchte: ',idx=344,icon=0,index=2}, 
+        row4={text='Druck: ',idx=116,icon=0},
+        row5={text='#DATETIME#',idx=0,icon=0}, 
+        state = true},
+    {nr = GASPAGE, 
+        row1={text='GAS kWh',idx=0,icon=0,bc='BLACK',tc='WHITE'}, 
+        row2={text='Jahr: ',idx=373,icon=0,index=1,align='LEFT'}, 
+        row3={text='Tag: ',idx=374,icon=0,index=1,align='LEFT'}, 
+        row4={text='Zaehler: ',idx=395,icon=0,align='LEFT'},
+        row5={text='#DATETIME#',idx=0,icon=0}, 
+        state = true},
+    {nr = POWERPAGE, 
+        row1={text='STROM kWh',idx=0,icon=0,bc='BLACK',tc='WHITE'}, 
+        row2={text='Jahr: ',idx=392,icon=0,index=1,align='LEFT'}, 
+        row3={text='Tag: ',idx=391,icon=0,index=1,align='LEFT'}, 
+        row4={text='Heute: ',idx=171,icon=0,align='LEFT'},
+        row5={text='#DATETIME#',idx=0,icon=0}, 
+        state = true},
+    {nr = INFOPAGE, 
+        row1={text='Information',idx=0,icon=0,bc='BLACK',tc='WHITE'}, 
+        row2={text='#NAME#: ',idx=0,icon=0}, 
+        row3={text='#DATETIME#',idx=0,icon=0}, 
+        row4={text='#TIME#',idx=0,icon=0},
+        row5={text='#DATE#',idx=0,icon=0}, state = true},
+    {nr = COVIDPAGE, row1=
+        {text='7-Tage Inzidenz',idx=0,icon=0,bc='BLACK',tc='WHITE'}, 
+        row2={text='#NAME#: ',idx=367,icon=0}, 
+        row3={text='#NAME#: ',idx=369,icon=0}, 
+        row4={text='#NAME#: ',idx=370,icon=0},
+        row5={text='#DATE#',idx=0,icon=0}, 
+        state = false}
+    }
+-- Define the combined parameter with placeholders for Icon(DDI),Text(DDS),Row(DDID). DDC is true to commit.
+local CMDROW = '{DDBC=#DDBC#,DDTC=#DDTC#,DDI=#DDI#,DDA=#DDA#,DDS=#DDS#,DDID=#DDID#}'
+local CMDDDC = ',DDC=true}'
+-- Timer rule updating the page selected
+local TIMERRULE = 'every hour between 07:00 and 20:00'
+-- local TIMERRULE = 'at 07:30'
+--
+-- FUNCTIONS
+--
+-- Helper - Return the date time in format DD-MM HH:MM with leading zeros - 29-05 11:19
+function getDateTimeShort(domoticz)
+    return ('%s.%s %s:%s'):format(
+        string.format("%02d", domoticz.time.day), 
+        string.format("%02d", domoticz.time.month), 
+        string.format("%02d", domoticz.time.hour), 
+        string.format("%02d", domoticz.time.minutes))
+end
+function getDate(domoticz)
+    return ('%s.%s.%s'):format(
+        string.format("%02d", domoticz.time.day), 
+        string.format("%02d", domoticz.time.month), 
+        string.format("%02d", domoticz.time.year))
+end
+function getTime(domoticz)
+    return ('%s:%s'):format(
+        string.format("%02d", domoticz.time.hour),
+        string.format("%02d", domoticz.time.minutes))
+end
+-- Set the combined parameter for a row
+local function setRow(domoticz, rownr, rowdata)
+    local rowstr = CMDROW   -- Command string with palceholder
+    local index = 1         -- Index of the rawData table, i.e. the first element as default
+    local value = ''        -- Value of the device taken from the rawData table index
+    local bc = 'WHITE'      -- Background color of the row
+    local tc = 'BLACK'      -- Textcolor of the row
+    local align = 'CENTER'
+    -- Check the attributes
+    if rowdata.index == nil then rowdata.index = index end
+    if rowdata.bc == nil then rowdata.bc = bc end
+    if rowdata.tc == nil then rowdata.tc = tc end
+    if rowdata.align == nil then rowdata.align = align end
+    -- Replace the colors placeholder DDBC, DDTC
+    rowstr = string.gsub(rowstr, '#DDBC#', rowdata.bc)
+    rowstr = string.gsub(rowstr, '#DDTC#', rowdata.tc)
+    -- Replace the text alignment placeholder DDA
+    rowstr = string.gsub(rowstr, '#DDA#', rowdata.align)
+    -- Replace the rownnumber placeholder DDID
+    rowstr = string.gsub(rowstr, '#DDID#', rownr)
+    -- Replace the icon placeholder DDI
+    rowstr = string.gsub(rowstr, '#DDI#', tostring(rowdata.icon))
+    -- Get the device value from the device attribute rawData
+    if rowdata.idx > 0 then 
+        -- Get the value from the table rawdata - use index 1,2...
+        value = domoticz.devices(rowdata.idx).rawData[rowdata.index]
+        -- domoticz.log(domoticz.devices(rowdata.idx).rawData)
+    end
+    -- Replace the string (=text) with text + device value
+    -- Get the text from the rowdata
+    local text = rowdata.text
+    -- Replace text placeholder - ensure to use the right case for the device attributes & methods
+    if string.match(text, '#DATETIME#') then text = string.gsub(text, '#DATETIME#', getDateTimeShort(domoticz)) end
+    if string.match(text, '#DATE#') then text = string.gsub(text, '#DATE#', getDate(domoticz)) end
+    if string.match(text, '#TIME#') then text = string.gsub(text, '#TIME#', getTime(domoticz)) end
+    if string.match(text, '#NAME#') and rowdata.idx > 0 then text = string.gsub(text, '#NAME#', domoticz.devices(rowdata.idx).name) end
+    -- Replace the text placeholder DDS
+    rowstr = string.gsub(rowstr, '#DDS#', text .. value)
+    -- Built the final row string
+    rowstr = rowstr .. ','
+    return rowstr
+end
+-- Set the display page with 5 rows.
+-- The data is taken from the global table pages.
+-- The data for the last row is amended with the commit command DDC=true.
+local function setPage(domoticz, pagenr)
+    local data = {}
+    local url = ""
+    -- Setting page: 2 GAS kWh
+    domoticz.log(string.format('Setting page: %d %s', pagenr, pages[2].row1.text))
+    for key, value in pairs(pages) do
+        if (value.nr == pagenr) then
+            local rows = ''
+            rows = rows .. setRow(domoticz, 1, value.row1)
+            rows = rows .. setRow(domoticz, 2, value.row2)
+            rows = rows .. setRow(domoticz, 3, value.row3)
+            rows = rows .. setRow(domoticz, 4, value.row4)
+            rows = rows .. setRow(domoticz, 5, value.row5) 
+            -- domoticz.log(rows)
+            -- Replace the last characters "}," with ",DDC=true}" to trigger commit
+            rows = rows:sub(0, -3) .. CMDDDC
+            -- Replace the url special characters comma and space 
+            rows = string.gsub(rows, ',', '%%2C')
+            rows = string.gsub(rows, ' ', '%%20')
+            -- Set the XML-API url
+            local url = URL_XMLAPI .. rows
+            -- domoticz.log(url)
+			domoticz.openURL({url = url, method = 'GET', callback = RES_XMLAPI})
+        end
+    end
+end
+-- Weather Page - Set the display page with 5 rows.
+-- The data is taken from the global table pages.
+-- The data for the last row is amended with the commit command DDC=true.
+local function setPageWeather(domoticz, pagenr)
+    local data = {}
+    local url = ""
+    domoticz.log(('Setting Weather Page: %d'):format(pagenr))
+    for key, value in pairs(pages) do
+        if (value.nr == pagenr) then
+            -- domoticz.log(value)
+            local rows = ''
+            -- Update the row data depending device statatus
+            -- ROW 1 = Title 
+            value.row1.text = 'WETTER'
+            -- value.row1.text = '\x28Wetter\x29'
+            value.row1.icon = 0
+            value.row1.align = 'CENTER'
+            -- ROW 2 = Temperature set flame icon if above 25 C
+            value.row2.text = ' T C: '
+            if (domoticz.devices(value.row2.idx).temperature > 25) then value.row2.icon = 23 end    -- very hot = flame
+            value.row2.align = 'LEFT'
+            -- ROW 3 = Humidity
+            value.row3.text = ' RH %%: '
+            if (domoticz.devices(value.row2.idx).temperature > 90) then value.row2.icon = 17 end
+            value.row3.align = 'LEFT'
+            -- ROW 4 = Barometer set forecast icon 
+            value.row4.text = ' P hPa: '
+            -- 0 BARO_STABLE, 1 BARO_SUNNY, 2 BARO_CLOUDY, 3 BARO_UNSTABLE, 4 BARO_THUNDERSTORM
+            if (domoticz.devices(value.row4.idx).forecast == 0) then value.row4.icon = 0 end    -- no icon for stable
+            if (domoticz.devices(value.row4.idx).forecast == 1) then value.row4.icon = 10 end   -- sunny
+            if (domoticz.devices(value.row4.idx).forecast == 2) then value.row4.icon = 13 end   -- cloudy
+            if (domoticz.devices(value.row4.idx).forecast == 3) then value.row4.icon = 12 end   -- wind
+            if (domoticz.devices(value.row4.idx).forecast == 4) then value.row4.icon = 14 end   -- lightning
+            value.row4.align = 'LEFT'
+            -- domoticz.log(domoticz.devices(value.row4.idx).forecast .. '#' .. domoticz.devices(value.row4.idx).forecastString ..'#ICON=' .. value.row4.icon ..'#FC=' .. domoticz.BARO_CLOUDY)
+            -- Set the rows
+            rows = rows .. setRow(domoticz, 1, value.row1)
+            rows = rows .. setRow(domoticz, 2, value.row2)
+            rows = rows .. setRow(domoticz, 3, value.row3)
+            rows = rows .. setRow(domoticz, 4, value.row4)
+            rows = rows .. setRow(domoticz, 5, value.row5) 
+            -- Replace the last characters "}," with ",DDC=true}" to trigger commit
+            rows = rows:sub(0, -3) .. CMDDDC
+            -- Replace the url special characters comma and space 
+            rows = string.gsub(rows, ',', '%%2C')
+            rows = string.gsub(rows, ' ', '%%20')
+            -- Set the XML-API url
+            local url = URL_XMLAPI .. rows
+            -- domoticz.log(url)
+			domoticz.openURL({url = url, method = 'GET', callback = RES_XMLAPI})
+        end
+    end
+end
+-- MAIN
+return {
+	on = {
+		timer = { TIMERRULE },
+		customEvents = { CUSTOMEVENT },
+		httpResponses = { RES_XMLAPI },
+		devices = { IDX_STATUSDISPLAYPAGE }
+	},
+	data = { pageSelected = { initial = 0 } },
+	logging = {},
+	execute = function(domoticz, triggeredItem)
+        local dopage = false
+        -- domoticz.log(domoticz.data)
+        -- Homematic script trigger
+		if (triggeredItem.isCustomEvent) then
+		    domoticz.data.pageSelected = triggeredItem.json.buttonnr
+		    dopage = true
+	    end
+	    -- Update the weather display
+		if (triggeredItem.isTimer) then
+		    domoticz.data.pageSelected = WEATHERPAGE
+		    dopage = true
+        end
+	    -- Update the display depending page selected from the page selector switch
+		if (triggeredItem.isDevice and triggeredItem.idx == IDX_STATUSDISPLAYPAGE) then
+		    -- The pagenr is 1,2,3,... which means need to convert the selector switch level from 10 to 1, 20 to 2 rtc.
+		    domoticz.data.pageSelected = triggeredItem.level / 10
+            domoticz.log(string.format("Page selected: %d (level=%d)", domoticz.data.pageSelected, triggeredItem.level))
+		    dopage = true
+        end
+        -- Select the page specific function
+        if (dopage) then
+            if (domoticz.data.pageSelected == WEATHERPAGE) then setPageWeather(domoticz, domoticz.data.pageSelected) end
+            if (domoticz.data.pageSelected == GASPAGE) then setPage(domoticz, domoticz.data.pageSelected) end
+            if (domoticz.data.pageSelected == POWERPAGE) then setPage(domoticz, domoticz.data.pageSelected) end
+            if (domoticz.data.pageSelected == INFOPAGE) then setPage(domoticz, domoticz.data.pageSelected) end
+            -- NOT USED
+            if (domoticz.data.pageSelected == COVIDPAGE) then setPage(domoticz, domoticz.data.pageSelected) end
+        end
+        
+        if (triggeredItem.isHTTPResponse and triggeredItem.trigger == RES_XMLAPI) then
+            if (triggeredItem.ok) then
+                -- domoticz.log(triggeredItem.data)
+            end
+        end
+    end
+}

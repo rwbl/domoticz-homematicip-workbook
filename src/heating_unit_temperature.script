@@ -1,0 +1,40 @@
+! File: heating_unit_temperature.script
+! Date: 20230103 
+! Author: Robert W.B. Linn
+! Listen to HmIP-STE2-PCB T1 temperature changes.
+! If the state of T1 is updated, trigger an HTTP JSON/IP request for the Custom Event  "homematic_heatingunittemperature".
+! The custom data is a JSON string with idx/temp of sensor T1 (Flow, VL) & T2 (Return, RL). Example:
+! {["idxrl"]=397, ["temprl"]=37.1, ["tempvl"]=42.5, ["idxvl"]=375}
+! Ensure to escape special characters
+string cAmp = "&";
+! Domoticz system url base for the http api request
+! Production
+string urlBase = "'http://domoticz-ip:port/json.htm";
+! Development
+! string urlBase = "'http://domoticz-ip:port/json.htm";
+string customEvent = "homematic_heatingunittemperature";
+! Get the actual date and time DD.MM HH:MM
+string actDate = system.Date("%d.%m");     ! sDate = "09.08"; "%d.%m.%Y" = "09.08.2020"; 
+string actTime = system.Date("%H:%M");    ! sTime = "07:32"; "%H:%M:%S") = "07:32:00"; 
+! HomematicIP Device
+! Get the temperature & object of the HmIP-STE2-PCB device via XMLAPI request: http://ccu-ip/config/xmlapi/statelist.cgi
+! T1 = Flow (Vorlauf) = VL
+! <datapoint name="HmIP-RF.00281F2996368C:1.ACTUAL_TEMPERATURE" type="ACTUAL_TEMPERATURE" ise_id="5729" value="20.200000" valuetype="4" valueunit="°C" timestamp="1672744699" operations="5"/>
+! T2 = Return (Rücklauf) = RL
+! <datapoint name="HmIP-RF.00281F2996368C:2.ACTUAL_TEMPERATURE" type="ACTUAL_TEMPERATURE" ise_id="5732" value="19.200000" valuetype="4" valueunit="°C" timestamp="1672744699" operations="5"/>
+string tempVL = dom.GetObject("HmIP-RF.00281F2996368C:1.ACTUAL_TEMPERATURE").State();  ! 42.500000
+!WriteLine(tempVL);
+string tempRL = dom.GetObject("HmIP-RF.00281F2996368C:2.ACTUAL_TEMPERATURE").State();  ! 37.100000
+!WriteLine(tempRL);
+! Domoticz Devices
+! Domoticz virtual sensor type Temp	LaCrosse TX3
+string idxVL = 375;
+string idxRL = 397;
+! Custom event data parameter must be in json format
+string data = '{"idxvl":'#idxVL#', "idxrl":'#idxRL#', "tempvl":'#tempVL#', "temprl":'#tempRL#'}';
+!WriteLine(data);
+! Build the Domoticz http rest request url to update the device usig customevent
+string urlRequest = urlBase#"?type=command"#cAmp#"param=customevent"#cAmp#"event="#customEvent#cAmp#"data="#data#"'";
+WriteLine(urlRequest);
+! Run the command without a return result
+cmdRes = dom.GetObject("CUxD.CUX2801001:1.CMD_EXEC").State("wget -q -O - "#urlRequest);

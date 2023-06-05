@@ -1,0 +1,247 @@
+-- battery_check.dzvents
+-- Check, triggered by selector switch, the battery state of system devices as defined in the selector levels.
+-- Systems: Domoticz, Homematic.
+-- To add more systems enhance the selector level and the script.
+-- 20230211 rwbl
+-- Define the Remote Homematic Script URL.
+local URL_HMAPI = "http://ccu-ip:port:8181/tclrega.exe"
+-- HTTP Response - MUST be UNIQUE across all events.
+local RES_HMAPI = "HOMEMATIC_BATTERYCHECK"
+-- Domoticz selector switch to trigger the battery check
+-- local IDX_SWITCH = 14   -- DevSystem
+local IDX_SWITCH = 399
+-- Domoticz alert device for the battery check messages (each device has a message)
+-- local IDX_ALERT = 13    -- DevSystem
+local IDX_ALERT = 55
+-- Domoticz server = use local url for async update of alert sensor via openurl
+local URL_DOMOTICZ = "localhost:8080"
+-- Domoticz update alert sensor command
+local URL_DOMOTICZ_ALERT_UPDATE = URL_DOMOTICZ .. "/json.htm?type=command&param=udevice&idx=" .. IDX_ALERT .. "&nvalue={LEVEL}&svalue="
+-- Domoticz URL to set the selector switch level
+-- NOTE: Tried using dzVents functions but do not work: domoticz.devices(IDX_SWITCH).switchSelector("Domoticz") or setLevel(10)
+local URL_DOMOTICZ_SWITCH_SETLEVEL = URL_DOMOTICZ .. "/json.htm?type=command&param=switchlight&idx=" .. IDX_SWITCH .. "&switchcmd=Set%20Level&level="
+-- Domoticz clear log command for the alert device
+local URL_DOMOTICZ_CLEARLOG = URL_DOMOTICZ .. "/json.htm?type=command&param=clearlightlog&idx=" .. IDX_ALERT
+-- Domoticz log marker
+local LOG_MARKER = "BATTERY_CHECK"
+-- Options
+-- List all devices, if true, in the alert device log. if false only lowbat are listed.
+local showall = false
+-- local showall = true
+-- Update the alert device
+local function updateAlertDevice(domoticz, level, msg, sec)
+    msg = domoticz.utils.urlEncode(msg)
+    -- The url with placeholders. Note the message must be concatenated here = do not use a placeholder because the msg is url encoded
+    url = string.gsub(URL_DOMOTICZ_ALERT_UPDATE, "{LEVEL}", level) .. msg
+    -- domoticz.log(url)
+    -- Add the msg to the alert device
+    -- Async update of the alert device - this does not block domoticz (see dzVents doc)
+    domoticz.openURL(url).afterSec(sec)
+end
+-- Battery check for all the systems.
+local function checkAll(domoticz)
+    -- Loop over the levels. Set the level via HTTP request with delay to handle system reponse.
+    -- levelnames: {"Clear Log", "All", "Domoticz", "Homematic"}
+    -- key=value pairs: k=1, v=Clear All; k=2, v=All; k=3, v=Domoticz; k=4, v=Homematic 
+    local levelnames = domoticz.devices(IDX_SWITCH).levelNames
+    -- domoticz.log(levelnames)
+    local level
+    for k, v in ipairs(levelnames) do
+    	-- domoticz.log(string.format("k=%s, v=%s", k, v))
+    	-- Do not use the levels 1 and 2
+    	if (k > 2) then
+    	    -- Set k to (k - 1) * 10 to get the level as defined by Domoticz 20, 30.
+            level = (k - 1) * 10
+            domoticz.log(string.format("Requesting %s (Level %d)", v, level))
+            domoticz.openURL(URL_DOMOTICZ_SWITCH_SETLEVEL .. level).afterSec(level)
+        end
+    end
+end
+-- Homematic embedded script to check for all devices if low_bat attribute is true.
+local homematicscript = [[! homematic_battery_check.script 20230208
+! Returns a JSON array with all devices having attribute LOW_BAT.
+! [{"name":"Bad","id":1786,"lowbat":false,"voltage":2.9},{"name":"Briefkasten","id":2508,"lowbat":false,"voltage":1.2}, more... ]
+! 20230208 rwbl
+! Result as JSON string (Array)
+string result = "[";
+! Number of devices with LOW_BAT = true
+integer counter = 0;
+! Get all devices objects
+var objIDs = dom.GetObject(ID_DEVICES).EnumUsedIDs();
+! Loop over all channel with their datapoints for the devices found
+integer cnt = 0;
+string devid; 
+foreach(devid, objIDs){
+  !Get the device object
+  var devobj = dom.GetObject(devid);
+  ! Name: Briefkasten Status: ID=2530
+  ! WriteLine("Name=" # devobj.Name() # ", ID=" #  devobj.ID());
+  ! Loop over all device channels to get the datapoint LOW_BAT
+  string chid; 
+  foreach(chid, devobj.Channels()) {
+    ! Get the device channel
+    var ch = dom.GetObject(chid);
+    if (ch) {
+      ! Get the datapoint for the attribute LOW_BAT from the channel
+      var dplowbat  = ch.DPByHssDP("LOW_BAT");
+      ! Get the datapoint for the attribute OPERATING_VOLTAGE from the channel
+      var dpvoltage  = ch.DPByHssDP("OPERATING_VOLTAGE");
+      ! Check if there is a low_bat datapoint (if so, then there is also an operating voltage)
+      if (dplowbat) {
+        cnt = cnt + 1;
+        ! Create the device json object (string)
+        var jsondev = "{\"name\":\"" # devobj.Name() # "\",\"id\":" #  devobj.ID() # ",\"lowbat\":" # dplowbat.Value() # ",\"voltage\":" # dpvoltage.Value().ToString(1) # "}";
+        ! WriteLine(jsondev);
+        if (cnt > 1) {
+          result = result # "," # jsondev;
+        }
+        else {
+          result = result # jsondev;
+        }
+      }    
+    }
+  }
+}
+result = result # "]";
+! WriteLine(result);
+]]
+-- System Homematic
+-- Check if the battery state for a device is low, i.e. lua table device['lowbat'] = true.
+-- The alert sensor is updated via http with a message containing device information.
+-- The alert level is 4 (red, battery LOW) or 1 (gree, battery OK).
+local function checkHomematic(domoticz, datatable)
+    local device
+    local level
+    local state
+    local msg
+    local cnt = 0
+    -- Loop over the table containing the key as device
+    for key,value in pairs(datatable) do
+        device = datatable[key]
+        level = 1
+        state = ""
+        if (device['lowbat'] == true) then
+            level = 4
+            state = "LOW"
+            cnt = cnt + 1
+        end
+        msg = string.format('Homematic - %s: %.1fV #STATE#', device['name'], device['voltage'])
+        msg = string.gsub(msg, "#STATE#", state)
+        if (showall == true) then
+            updateAlertDevice(domoticz, level, msg, 1)
+        end
+        if (showall == false and level == 4) then
+            updateAlertDevice(domoticz, level, msg, 1)
+        end
+    end
+    level = 1
+    msg = string.format('Homematic Battery Check - OK', cnt)
+    if (cnt > 0) then 
+        level = 4 
+        msg = string.format('Homematic Battery Check - %d LOW device(s)', cnt)
+    end
+    updateAlertDevice(domoticz, level, msg, 2)
+    domoticz.log(msg)
+end
+-- System Domoticz
+-- Check if the battery state for a device is below threshold.
+-- The alert sensor is updated via http with a message containing device information.
+-- The alert level is 4 (red, battery LOW) or 1 (gree, battery OK).
+local function checkDomoticz(domoticz)
+    -- Set a threshold
+    local DEF_THRESHOLD = 20
+    local level
+    local state
+    local msg
+    local url
+    local devicetype
+    local cnt = 0
+    -- Loop over all devices and check the property device.batteryLevel
+	-- !Ensure the right case for the device attribute -- see dzVents documentation
+    domoticz.devices().forEach(function(device)
+        devicetype = string.format("%s, %s", device.deviceType, device.deviceSubType)
+        -- domoticz.log(string.format("Domoticz: %s (%s) - %s", device.name, devicetype, device.batteryLevel))
+        if device.batteryLevel ~= nil then
+            level = 1
+            state = ""
+            if device.batteryLevel < DEF_THRESHOLD then
+                level = 4
+                state = "LOW"
+                cnt = cnt + 1
+            end
+            msg = string.format('Domoticz - %s (%s): %d%% #STATE#', device.name, devicetype, device.batteryLevel)
+            msg = string.gsub(msg, "#STATE#", state)
+            if (showall == true) then
+                updateAlertDevice(domoticz, level, msg, 1)
+            end
+            if (showall == false and level == 4) then
+                updateAlertDevice(domoticz, level, msg, 1)
+            end
+        end
+    end)
+    level = 1
+    msg = string.format('Domoticz Battery Check - OK', cnt)
+    if (cnt > 0) then 
+        level = 4 
+        msg = string.format('Domoticz Battery Check - %d LOW device(s)', cnt)
+    end
+    updateAlertDevice(domoticz, level, msg, 2)
+    domoticz.log(msg)
+end
+return {
+	on = {
+        devices = { IDX_SWITCH },
+		httpResponses = { RES_HMAPI }
+	},
+	logging = {
+		level = domoticz.LOG_INFO, marker = LOG_MARKER,
+	},
+	execute = function(domoticz, item)
+		if (item.isDevice) then
+		    -- Select the level: 0=Clear Log, 10=All, 20=Domoticz, 30=Homematic
+		    if item.levelVal == 0 then
+                -- Submit HTTP GET request to clear the alert device log
+		        domoticz.log(string.format("Clear Log"))
+                domoticz.openURL(URL_DOMOTICZ_CLEARLOG)
+                domoticz.devices(IDX_ALERT).updateAlertSensor(0,"Keine Meldungen")  --No Alerts
+            end
+		    if item.levelVal == 10 then
+		        domoticz.log(string.format("All started"))
+                checkAll(domoticz)
+            end
+		    if item.levelVal == 20 then
+		        domoticz.log(string.format("Domoticz in progress"))
+                checkDomoticz(domoticz)
+    		end
+		    if item.levelVal == 30 then
+		        domoticz.log(string.format("Homematic in progress"))
+                -- Submit the HTTP GET request = Remote Homematic Script
+                -- The battery check is done in the http response below
+    			domoticz.openURL({
+    				url = URL_HMAPI,
+    	            headers = { ['content-type'] = 'application/x-www-form-urlencoded' },
+    	            postData = homematicscript, method = 'POST', callback = RES_HMAPI
+    			}).afterSec(1)
+    		end
+	    end
+	    -- Check if this is the homematic http response
+		if (item.isHTTPResponse and item.trigger == RES_HMAPI) then
+            -- domoticz.log(item)
+            if (item.ok) then
+                -- The item data contains the XML response from the CCU
+                -- domoticz.log(item.data)
+                -- Get the various XML tag result, replace &quot; by " to get JSON string
+                local data = domoticz_applyXPath(item.data,'/xml/result/text()')
+                data = string.gsub(data, "&quot;", '"')
+                -- domoticz.log(data)
+                -- Convert JSON string (array) to Lua table
+                local datatable = domoticz.utils.fromJSON(data)
+                -- domoticz.log(datatable)
+                checkHomematic(domoticz, datatable)
+			else
+				domoticz.log('There was a problem handling the request', domoticz.LOG_ERROR)
+				domoticz.log(item, domoticz.LOG_ERROR)
+			end
+		end
+	end
+}

@@ -1,0 +1,46 @@
+! File: thermostat_sync.script
+! Date: 20210307
+! Author: Robert W.B. Linn
+! Project: domoticz-homematicip-workbook
+! If the setpoint of a thermostat gets updated, update the corresponding domoticz thermostat silent (no active setpoint change).
+! Via cuxd an http api request for a customevent is submitted to domoticz.
+! Custom event data parameter must be in json format.
+! The thermostat trigger is value > 4.5 when updated
+string cAmp = "&";
+! Domoticz system url base for the http api request
+! Production
+string urlBase = "'http://domoticz-ip:port/json.htm";
+! Development
+! string urlBase = "'http://domoticz-ip:port/json.htm";
+string customEvent = "thermostat_sync";
+string deviceID = "UNKNOWN";    ! 1541
+string setPoint = "";           ! 20.5
+string actTemperature = "";     ! 20.3
+string deviceIdxSP = "UNKNOWN";   ! 336
+string deviceIdxPV = "UNKNOWN";   ! 360
+string syncState = "1";         ! must be 1 for silent update in domoticz
+! Get the object datapoint of the thermostat which setpoint is updated
+object objDatapoint = dom.GetObject ("$src$");
+if (objDatapoint) {
+  if (objDatapoint.Value()) {
+    object objChannel = dom.GetObject (objDatapoint.Channel());
+    deviceID = objChannel.Device(); 
+    setPoint = objChannel.DPByHssDP("SET_POINT_TEMPERATURE").Value();
+    actTemperature = objChannel.DPByHssDP("ACTUAL_TEMPERATURE").Value();
+  }
+}
+! Map the homematic thermostat datapoint to the domoticz idx sp (thermostat) and pv (temperature)
+if (deviceID == "1836") { deviceIdxSP = 342; deviceIdxPV = 364; }  ! Dusche
+if (deviceID == "1786") { deviceIdxSP = 341; deviceIdxPV = 365; }  ! Bad
+if (deviceID == "1530") { deviceIdxSP = 340; deviceIdxPV = 366; }  ! Flur
+if (deviceID == "1584") { deviceIdxSP = 339; deviceIdxPV = 362; }  ! Wohnzimmer-2
+if (deviceID == "1634") { deviceIdxSP = 338; deviceIdxPV = 361; }  ! Wohnzimmer-1
+if (deviceID == "1684") { deviceIdxSP = 337; deviceIdxPV = 363; }  ! Esszimmer
+if (deviceID == "1390") { deviceIdxSP = 336; deviceIdxPV = 360; }  ! MakeLab
+! Custom event data parameter must be in json format
+string data = '{"id":'#deviceID#', "idxsp":'#deviceIdxSP#', "idxpv":'#deviceIdxPV#', "setpoint":'#setPoint#', "temperature":'#actTemperature#', "sync":'#syncState#'}';
+! Build the Domoticz http rest request url to update the device usig customevent
+string urlRequest = urlBase#"?type=command"#cAmp#"param=customevent"#cAmp#"event="#customEvent#cAmp#"data="#data#"'";
+WriteLine(urlRequest);
+! Run the command without a return result
+cmdRes = dom.GetObject("CUxD.CUX2801001:1.CMD_EXEC").State("wget -q -O - "#urlRequest);

@@ -1,0 +1,212 @@
+<!--
+File:	Homematic_Roomlist.html (custom page located in the domoticz www/templates folder)
+Date:	20230604
+Author:	Robert W.B. Linn
+This is a simple example of creating a jQuery Datatable and populate with data from the Homematic CCU.
+List in a datatable, all homematic rooms via an HTTP XML-API request with script roomlist.cgi.
+HTTP XML-API response (extract) is an XML tree structure which is parsed to list the room name, ise_id and channel (as csv string).
+<roomList>
+	<room name="Bad" ise_id="1231"><channel ise_id="1806"/>	</room>
+	<room name="Bibliothek" ise_id="1233"/>
+	<room name="Esszimmer" ise_id="1226"><channel ise_id="1708"/></room>
+	<room name="Flur" ise_id="5702"><channel ise_id="1554"/></room>
+	<room name="Gaestezimmer" ise_id="1228"/>
+	<room name="MakeLab" ise_id="5701"><channel ise_id="1414"/><channel ise_id="1471"/><channel ise_id="1474"/><channel ise_id="1479"/><channel ise_id="1500"/></room>
+	...
+</roomList>
+The room attributes listed in the datatable columns are:
+[index=attribute ("example")]
+0=name ("MakeLab")
+1=ise_id ("5701") 
+3=channels ("1414,1471,...")
+Notes
+* The URL for the XML-API devicelist cgi script is defined as constant URL_XMLAPI (set accordingly).
+* ENSURE to clear the browser cache after making changes and loading the page.	
+-->
+<!--
+	HTML
+-->
+<div id="roomlistmain" class="container">
+	<!-- Page title -->
+	<h2 class="page-header" id="pagetitle" data-i18n="Homematic Roomlist"></h2>
+	<!-- 
+		Define the table header with id roomlisttable
+		The headers are the xml-api device attributes.
+	-->
+    <table class="display" id="roomlisttable" border="0" cellpadding="0" cellspacing="0" width="100%">
+        <thead>
+            <tr>
+				<th align="center" data-i18n="name"></th>
+				<th align="center" data-i18n="ise_id"></th>
+				<th align="center" data-i18n="channels">ready_config</th>
+            </tr>
+        </thead>		
+    </table>
+	
+	<!--
+		Action button
+	-->
+    <table class="display" border="0" cellpadding="0" cellspacing="0" width="100%">
+		<tr>
+			<td align="right">
+				<a class="btnstyle3" onclick="refreshRoomlistTable();" data-i18n="Refresh"></a>
+			</td>
+		</tr>
+    </table>
+</div>
+<!--
+	JAVASCRIPT 
+-->
+<script type="text/javascript" charset="utf-8">
+	/**
+	 * Refresh the roomlisttable by requesting the datapoints from the ccu.
+	 * The data is requested by submitting url with xml-api script roomlist.cgi to the ccu.
+	 * http://ccu-ip/addons/xmlapi/roomlist.cgi
+	 * @param none
+	 * @returns none
+	 */
+	function refreshRoomlistTable() {	
+		// Show toastmessage, style error, loading the table - text, timeout, iserror
+		// HideNotify();
+		// ShowNotify('Please wait, requesting data...', 1000, true);
+		// Define the url of the xml-api roomlist scripts (see.ajax > url)
+		var URL_XMLAPI = "http://ccu-ip:port/addons/xmlapi/roomlist.cgi";
+		console.log("refreshRoomlistTable: url=" + URL_XMLAPI);
+		// Define the datatable
+		var oTable = $('#roomlisttable').dataTable();
+		oTable.fnClearTable();
+		oTable.fnDraw();
+		// Using a timer with short delay to show the empty table whilst fetching the data from the ccu
+		var timer, timeout = 150;
+		clearTimeout(timer);
+		timer = setTimeout(function() {		
+			$.ajax({
+				// Request the roomlist
+				url: URL_XMLAPI,
+				async: false,
+				// Datatype must be xml as the roomlist.cgi outputs xml tree structure
+				dataType: 'xml',
+				// Parse the data to build the datatable
+				success: function (data) {
+					// console.log(data);
+					// Check if there is data
+					if (typeof data != 'undefined') {
+					
+						// Extract relevant data from XML from root node deviceList
+						// <roomList>
+						//		<room name="Bad" ise_id="1231"><channel ise_id="1806"/></room>
+						//		<room name="Bibliothek" ise_id="1233"/>							
+						// ...
+						var $rooms = $('roomList',data);
+						// console.log($rooms);
+						// Loop over the room xml nodes
+						$rooms.find("room").each(function(index, elem){
+							// console.log(elem);
+							// elem = found XML element
+							// Room attributes from xml:
+							var $room = $(this); 
+							var room_name = $room.attr("name");
+							var room_ise_id = $room.attr("ise_id");
+							var room_channels = "";
+							var $channels = $("channel", elem);
+							// console.log("Channels: " + $channels.length);
+							// Check if there are room channels (devices)
+							if ($channels.length > 0){
+								// Add channels seperated by comma
+								$channels.each(function(){
+									room_channels += $(this).attr("ise_id") + ",";
+								});
+								// Remove trailing comma
+								room_channels = room_channels.slice(0, -1);
+							}
+							// Add a row with column content for the 3 cols (ensure to align with table header)
+							var addId = oTable.fnAddData({
+								"0": room_name,
+								"1": room_ise_id,
+								"2": room_channels
+							});
+							console.log("name=" + room_name + ",ise_id=" + room_ise_id + ",channels=" + room_channels);
+						});
+					} /* if data not undefined */
+				}, /* success */
+				error: function(data) { 
+					bootbox.alert($.t("[ERROR] No data found. Check URL or CCU!"));
+				} /* error */
+			});
+		}, timeout);
+		// Add a click handler to the rows using the DataTables API
+		$("#roomlisttable tbody").off();
+		$("#roomlisttable tbody").on('click', 'tr', function () {
+			if ($(this).hasClass('row_selected')) {
+				$(this).removeClass('row_selected');
+			}
+			else {
+				var oTable = $('#roomlisttable').dataTable();
+				oTable.$('tr.row_selected').removeClass('row_selected');
+				$(this).addClass('row_selected');
+				var anSelected = fnGetSelected(oTable);
+				if (anSelected.length !== 0) {
+					// Get selected row data as object
+					var data = oTable.fnGetData(anSelected[0]);
+					console.log(data);
+				}
+			}
+		});
+		console.log('refreshRoomlistTable: DONE')
+	}
+	/**
+	 * Show the roomlisttable.
+	 */
+	function showRoomlistTable() {
+		$('#roomlistmain').i18n();
+		// Set the datatable options
+		var oTable = $('#roomlisttable').dataTable({
+			// Define table control elements to appear on the page and in what order.
+			// <"H" - jQuery UI header show (jQueryUI theme "header" classes)
+			// l - Length menu
+			// f - filter box (which also is floated right)
+			// r - processing display element
+			// C - show Colvis, which are floated right
+			// t - Table
+			// <"F" - jQuery UI footer show (jQueryUI theme "footer" classes)
+			// i - Information
+			// p - Pagination 
+			"sDom": '<"H"lfrC>t<"F"ip>',
+			// Set the columns visibility - ensure array length equal number of columns of the HTML table (id=roomlisttable). 
+			// 'null' - default values and automatically detected options.
+			"aoColumns": [ 
+				/* name */		null,
+				/* ise_id */	{ "sClass": "center" },
+				/* channels */	null
+			],
+			// TableTools addon: select only a single row
+			"oTableTools": {
+				"sRowSelect": "single",
+			},
+			// Sort the datatable by first column in asc order
+			"aaSorting": 		[[0, "asc"]],
+			// Do not use additional sort classes  'sorting_1 .. _3'
+			"bSortClasses":		false,
+			// Display 'processing' indicator when table is processed
+			"bProcessing":		true,
+			// Cookie to save table display information pagination, display length, filtering and sorting
+			"bStateSave":		true,
+			// Enable jQuery UI ThemeRoller support
+			"bJQueryUI":		true,
+			// Define the pagination numbers,
+			"aLengthMenu":		[[10, 20, -1], [10, 20, "All"]],
+			// Number of rows to display on a single page
+			"iDisplayLength":	10,
+			"sPaginationType":	"full_numbers",
+			language:			$.DataTableLanguage
+		});
+		// Refresh the table with data from the CCU
+		refreshRoomlistTable();
+	}
+	/**
+	 * Document ready = show the roomlisttable
+	 */
+	$(document).ready(function() {
+	  showRoomlistTable();
+	});  
+</script>

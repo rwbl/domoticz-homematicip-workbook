@@ -1,0 +1,35 @@
+--[[
+File: battery_check_timer.dzvents
+Date: 20230211
+Author: Robert W.B. Linn
+Check, triggered by timer, the lowbat state of devices as defined in the selector levels.
+This event triggers the event battery_check for Homematic and Domoticz devices.
+The selector levels are set via http json/api request.
+NOTE: Tried using dzVents functions but do not work: domoticz.devices(IDX_SWITCH).switchSelector("Domoticz") or setLevel(10)
+Systems: Domoticz, Homematic.
+To add more systems enhance the selector level and the script.
+]]--
+-- Domoticz selector switch to trigger the battery check
+-- local IDX_SWITCH = 14   -- DevSystem
+local IDX_SWITCH = 399
+-- Domoticz server = use localhost url for async via openurl
+local URL_DOMOTICZ = "localhost:8080"
+-- Domoticz URL to set the selector switch level
+local URL_DOMOTICZ_SWITCH_SETLEVEL = URL_DOMOTICZ .. "/json.htm?type=command&param=switchlight&idx=" .. IDX_SWITCH .. "&switchcmd=Set%20Level&level="
+-- Timer 
+local TIMER_RULE = 'at 01:00'
+return {
+	on = { timer = { TIMER_RULE } },
+	logging = { 	level = domoticz.LOG_INFO, marker = 'BATTERY_CHECK_TIMER', },
+	execute = function(domoticz, timer)
+        -- selector level: 0=clear log; 10=all (=check battery state for all systems)
+        -- See event battery_check
+        local level
+        domoticz.log(string.format("*** Battery Check Timer: Clearing Log"))
+        level = 0
+        domoticz.openURL(URL_DOMOTICZ_SWITCH_SETLEVEL .. level)
+        domoticz.log(string.format("*** Battery Check Timer: All"))
+        level = 10
+        domoticz.openURL(URL_DOMOTICZ_SWITCH_SETLEVEL .. level).afterSec(level)
+	end
+}

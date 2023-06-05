@@ -1,0 +1,39 @@
+! File: garage_door_monitor.script
+! Date: 20220327
+! Author: Robert W.B. Linn
+! Function: Garage Door Monitor
+! Ensure to escape special characters
+! Get the actual date and time DD.MM HH:MM
+string actDate = system.Date("%d.%m");     ! sDate = "09.08"; "%d.%m.%Y" = "09.08.2020"; 
+string actTime = system.Date("%H:%M");    ! sTime = "07:32"; "%H:%M:%S") = "07:32:00"; 
+! HomematicIP Device
+! Get the state & object of the SWDM device via XMLAPI request: http://ccu-ip/config/xmlapi/statelist.cgi
+! <datapoint name="HmIP-RF.001558A99D5A78:1.STATE" type="STATE" ise_id="3622" value="0" valuetype="16" valueunit="""" timestamp="0" operations="5"/>
+string swdmState = dom.GetObject("HmIP-RF.001558A99D5A78:1.STATE").State();  ! 0=Closed, 1=Open
+! Domoticz Device
+! A Domoticz virtual sensor type Alert is used to how the SWDM state
+! 324,VirtualSensors,Garagentor,General,Alert,No Alert!
+string alertIdx = 324;			! Type: General; SubType: Alert
+string alertLevel = "0";
+string alertState = "Unknown";
+! Check SWDM state 0=Closed,1=Open
+if (swdmState == 0) {
+  alertLevel = "1";     ! GREEN
+  alertState = "Geschlossen";
+}
+if (swdmState == 1) {
+  alertLevel = "4";     ! RED
+  alertState = "Offen";
+}
+string alertText = alertState#"%20(" # actDate # "%20" # actTime # ")";
+! string alertText = "Garagentor%20"#alertState#"%20(" # actDate # "%20" # actTime # ")";
+WriteLine(alertText);
+! Build the Domoticz http rest request url to update the device
+! /json.htm?type=command¶m=udevice&idx=IDX&nvalue=LEVEL&svalue=TEXT
+! Level: 0=gray, 1=green, 2=yellow, 3=orange, 4=red
+string cAmp = "&";
+string urlBase = "'http://domoticz-ip:port/json.htm"; ! Production
+string urlRequest = urlBase#"?type=command"#cAmp#"param=udevice"#cAmp#"idx="#alertIdx#cAmp#"nvalue="#alertLevel#cAmp#"svalue="#alertText#"'";
+WriteLine(urlRequest);
+! Run the command without a return result
+cmdRes = dom.GetObject("CUxD.CUX2801001:1.CMD_EXEC").State("wget -q -O - "#urlRequest);

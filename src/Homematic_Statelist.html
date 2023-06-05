@@ -1,0 +1,320 @@
+<!--
+File:	Homematic_Statelist.html (custom page located in the domoticz www/templates folder)
+Date:	20230603
+Author:	Robert W.B. Linn
+Display the datapoints of all homematic devices in a datatable.
+The datapoints are requested from the CCU using the CCU addon XML-API.
+Notes
+* The URL for the XML-API statelist cgi script is defined as constant URL_XMLAPI (set accordingly).
+* ENSURE to clear the browser cache after making changes and loading the page.	
+-->
+<div id="statelistmain" class="container">
+	<!-- Page title -->
+	<h2 class="page-header" id="pagetitle" data-i18n="Homematic Statelist"></h2>
+	<!-- 
+		Define the table header with id statelisttable.
+		Column titles are the xml-api datapoint attributes, but with own text.
+	-->
+    <table class="display" id="statelisttable" border="0" cellpadding="0" cellspacing="0" width="100%">
+        <thead>
+            <tr>
+				<!-- Columns with datapoint attributes 				Index=Datapoint Attribute -->
+				<th align="center" data-i18n="Device"></th>			<!-- 0=device_name -->
+				<th align="center" data-i18n="Name"></th>			<!-- 1=name -->
+				<th align="center" data-i18n="Type"></th>			<!-- 2=type -->
+				<th align="center" data-i18n="ID"></th>				<!-- 3=ise_id -->
+				<th align="center" data-i18n="Value"></th>			<!-- 4=value -->
+				<th align="center" data-i18n="Valuetype"></th>		<!-- 5=valuetype (hidden) -->
+				<th align="center" data-i18n="Unit"></th>			<!-- 6=valueunit -->
+				<th align="center" data-i18n="Last Seen"></th>		<!-- 7=timestamp -->
+				<th align="center" data-i18n="Operations"></th>		<!-- 8=operations (hidden) -->
+            </tr>
+        </thead>		
+    </table>
+	<!--
+		Action buttons
+	-->
+    <table class="display" border="0" cellpadding="0" cellspacing="0" width="100%">
+		<tr>
+			<td align="right">
+				<!-- Refresh the statelisttable -->
+				<a class="btnstyle3" onclick="refreshStatelistTable();" data-i18n="Refresh"></a>
+			</td>
+		</tr>
+    </table>
+	<p>
+	<!-- 
+		Show the selected datapoints as readonly but can be selected and copied:
+		device_name, name, ise_id, value, valueunit 
+	-->
+	<h2 data-i18n="Datapoint"></h2><br>
+	<table class="display" id="datapointtable" border="0" cellpadding="0" cellspacing="20">
+		<tr id="datapointrow">
+			<td>
+				<label for="datapointdevicename"><span data-i18n="Device"></span>:</label>
+				<input type="text" id="datapointdevicename" style="width: 100px; padding: .2em;" class="text ui-widget-content ui-corner-all" readonly>
+				&nbsp;
+				<label for="datapointname"><span data-i18n="Name"></span>:</label>
+				<input type="text" id="datapointname" style="width: 350px; padding: .2em;" class="text ui-widget-content ui-corner-all" readonly>
+				&nbsp;
+				<label for="datapointise_id"><span data-i18n="ID"></span>:</label>
+				<input type="text" id="datapointise_id" style="width: 75px; padding: .2em;" class="text ui-widget-content ui-corner-all" readonly>
+				&nbsp;
+				<label for="datapointvalue"><span data-i18n="Value"></span>:</label>
+				<input type="text" id="datapointvalue" style="width: 150px; padding: .2em;" class="text ui-widget-content ui-corner-all" readonly>
+				&nbsp;
+				<input type="text" id="datapointvalueunit" style="width: 25px; padding: .2em;" align="left" class="text ui-widget-content ui-corner-all" readonly>
+			</td>
+		</tr>
+	</table>
+</div>
+<!--
+JAVASCRIPT 
+-->
+<script type="text/javascript" charset="utf-8">
+	/**
+	 * Convert UNIX timestamp to date time string.
+	 * @param {Number} unixtime Number of seconds since Unix epoch
+	 * @returns (String) YYYY-MM-DD HH:MM:SS 
+	 */
+	function convertUnixTime(unixtime) {
+		var result = "";
+		if (unixtime > 0) {
+			var u = new Date(unixtime * 1000);
+			result = u.getUTCFullYear() +
+				'-' + ('0' + u.getUTCMonth()).slice(-2) +
+				'-' + ('0' + u.getUTCDate()).slice(-2) + 
+				' ' + ('0' + u.getUTCHours()).slice(-2) +
+				':' + ('0' + u.getUTCMinutes()).slice(-2) +
+				':' + ('0' + u.getUTCSeconds()).slice(-2) // +
+				// '.' + (u.getUTCMilliseconds() / 1000).toFixed(3).slice(2, 5) 
+		};
+		return result;
+	};
+	/**
+	 * Clear the table and show no data message as set in the table options.
+	 * @param none
+	 */
+	function clearStatelistTable() {
+		var oTable = $('#statelisttable').dataTable();
+		oTable.fnClearTable();
+		oTable.fnDraw();		
+		console.log('clearStatelistTable: DONE');
+	}
+	
+	/**
+	 * Refresh the statelisttable by requesting the datapoints from the ccu.
+	 * The data is requested by submitting url with xml-api statelist cgi script to the ccu.
+	 * http://ccu-ip/addons/xmlapi/statelist.cgi
+	 */
+	function refreshStatelistTable() {
+		// Show toastmessage, style error, loading the table - text, timeout, iserror
+		HideNotify();
+		ShowNotify('Please wait, fetching datapoints...', 2000, true);
+		// Define the url of the homematic ccu xml-api statelist scripts (see.ajax > url)
+		// Set the default url for the xml-api statelist
+		// [TODO] Define as a config variable
+		var URL_XMLAPI = "http://ccu-ip:port/addons/xmlapi/statelist.cgi";
+		// Define the statelist datatable
+		var oTable = $('#statelisttable').dataTable();
+		oTable.fnClearTable();
+		oTable.fnDraw();
+		// Using a timer with short delay to show the empty table whilst fetching the data from the ccu
+		var timer, timeout = 150;
+		clearTimeout(timer);
+		timer = setTimeout(function() {		
+			$.ajax({
+				// Request the statelist using the CCU addon XML-API
+				url: URL_XMLAPI,
+				async: false,
+				// Datatype must be xml as the statelist.cgi outputs xml tree structure
+				dataType: 'xml',
+				// Parse the data to build the datatable
+				success: function (data) {
+					// console.log(data);
+					// Check if there is data
+					if (typeof data != 'undefined') {
+						// Extract relevant data from XML from node stateList
+						var $devices = $('stateList',data);
+						// console.log(devices);
+						// Loop over the devices xml nodes
+						$devices.find("device").each(function(index, elem){
+							// <device name="Alert Indicator" ise_id="3884" unreach="false" config_pending="false">
+							// 	<channel name="Alert Indicator:0" ise_id="3885" index="0" visible="true" operate="false">
+							// 		<datapoint name="HmIP-RF.000D1BE9A4E733:0.ACTUAL_TEMPERATURE" type="ACTUAL_TEMPERATURE" ise_id="3886" value="0.000000" valuetype="4" valueunit="°C" timestamp="0" operations="5"/>
+							// ...
+							// console.log(elem);
+							// elem = found XML element
+							// Device attributes from xml
+							// <device name="Alert Indicator" ise_id="3884" unreach="false" config_pending="false">
+							var $device = $(this); 
+							var device_name = $device.attr("name");
+							var device_iseid = $device.attr("ise_id");
+							// console.log(device_name + " = " + device_iseid);
+							// List of device channels
+							// <channel name="Alert Indicator:0" ise_id="3885" index="0" visible="true" operate="false">
+							var $channels = $("channel", elem);
+							// console.log("Channels: " + $channels.length);
+							
+							// List of device channel datapoints
+							// <datapoint name="HmIP-RF.000D1BE9A4E733:0.ACTUAL_TEMPERATURE" type="ACTUAL_TEMPERATURE" ise_id="3886" value="0.000000" valuetype="4" valueunit="°C" timestamp="0" operations="5"/>
+							var name = "";
+							var type = "";
+							var ise_id  = "";
+							var value  = "";
+							var valuetype  = "";
+							var valueunit  = "";
+							var timestamp  = "";
+							var operations  = "";
+							// Loop over each device channel, i.e., there might be one or more channels
+							$channels.each(function(){
+								// Get the channel
+								var $channel = $(this);
+								// Select the channel name
+								var $channelname = $channel.attr("name");
+								// Find channel datapoints
+								var $datapoints = $(this).find('datapoint');
+								// console.log("Datapoints: " + $datapoints.length);
+								// Get the datapoints
+								if ($datapoints.length > 0){
+									// Loop over each datapoint of the channel and get the attributes
+									// <datapoint name="HmIP-RF.002018A99D2097:1.ACTIVE_PROFILE" type="ACTIVE_PROFILE" ise_id="1807" value="2" valuetype="16" valueunit="" timestamp="1685259105" operations="7"/>
+									$datapoints.each(function(){
+										var $datapoint = $(this);
+										name = $datapoint.attr("name");
+										type= $datapoint.attr("type");
+										ise_id = $datapoint.attr("ise_id");
+										value = $datapoint.attr("value");
+										valuetype = $datapoint.attr("valuetype");
+										valueunit = $datapoint.attr("valueunit");
+										// PATCH: replace valueunit "" with blank (strict comparison). Issue with HmIP-SWDM device.
+										if (valueunit === '""') {
+											valueunit = valueunit.replace('""', '');
+										}
+										timestamp = convertUnixTime(Number($datapoint.attr("timestamp")));
+										operations = $datapoint.attr("operations");
+										// console.log("X="+ device_name + ": " + ise_id + ", " + value);
+										// Add the datapoint with attributes
+										// device name,name,type,ise_id,value,valuetype,valueunit,timestamp,operations
+										var addId = oTable.fnAddData({
+											"DT_RowId": ise_id,
+											// Set the column data
+											/*
+											"device": device_name,
+											"name": name,
+											"type": type,
+											"ise_id": ise_id,
+											"value": value,
+											"valuetype": valuetype,
+											"valueunit": valueunit,
+											"timestamp": timestamp,
+											"operations": operations,
+											*/
+											// Set the column content for the 9 cols (ensure to align with table header)
+											"0": device_name,
+											"1": name,
+											"2": type,
+											"3": ise_id,
+											"4": value,
+											"5": valuetype,
+											"6": valueunit,
+											"7": timestamp,
+											"8": operations
+										});
+										// console.log("CHANNEL DATAPOINTS DONE");
+									}); // each
+								}
+							});
+							
+						});
+					} /* if data not undefined */
+				}, /* success */
+				error: function(data) { 
+					bootbox.alert($.t("[ERROR] No data found. Check URL or CCU!"));
+				} /* error */
+			});
+		}, timeout);
+		/* Add a click handler to the rows - this could be used as a callback */
+		$("#statelisttable tbody").off();
+		$("#statelisttable tbody").on('click', 'tr', function () {
+			if ($(this).hasClass('row_selected')) {
+				$(this).removeClass('row_selected');
+			}
+			else {
+				var oTable = $('#statelisttable').dataTable();
+				oTable.$('tr.row_selected').removeClass('row_selected');
+				$(this).addClass('row_selected');
+				var anSelected = fnGetSelected(oTable);
+				if (anSelected.length !== 0) {
+					// Get selected row data as object
+					// index: 0=device_name,1=name,2=type,3=ise_id,4=value,5=valuetype,6=valueunit,7=timestamp,8=operations
+					var data = oTable.fnGetData(anSelected[0]);
+					// console.log(data);
+					// Update the values of the datapoint table
+					$("#datapointtable #datapointdevicename").val(data["0"]);
+					$("#datapointtable #datapointname").val(data["1"]);
+					$("#datapointtable #datapointise_id").val(data["3"]);
+					$("#datapointtable #datapointvalue").val(data["4"]);
+					$("#datapointtable #datapointvalueunit").val(data["6"]);
+				}
+			}
+		});
+	}
+	/**
+	 * Show the statelisttable
+	 * Reference: https://legacy.datatables.net/usage
+	 */
+	function showStatelistTable() {
+		$('#statelistmain').i18n();
+		// Set the datatable options
+		var oTable = $('#statelisttable').dataTable({
+			// Define table control elements to appear on the page and in what order.
+			// <"H" - jQuery UI header show (jQueryUI theme "header" classes)
+			// l - Length menu
+			// f - filter box (which also is floated right)
+			// r - processing display element
+			// C - show Colvis, which are floated right
+			// t - Table
+			// <"F" - jQuery UI footer show (jQueryUI theme "footer" classes)
+			// i - Information
+			// p - Pagination 
+			"sDom": '<"H"lfrC>t<"F"ip>',
+			// Set the columns visibility - ensure array length equal number of columns of the HTML table (id=statelisttable). 
+			// 'null' - default values and automatically detected options.
+			// Colums hidded are valuetype, operations
+			"aoColumns": [ 
+				/* Device */ null,
+				/* name */ null,
+				/* type */ null,
+				/* ise_id */ null,
+				/* value */ null,
+				/* valuetype */ { "bSearchable": false, "bVisible": false },
+				/* valueunit */ null,
+				/* timestamp */ null,
+				/* operations */ { "bSearchable": false, "bVisible": false },
+			],
+			// TableTools addon: select only a single row
+			"oTableTools": {
+				"sRowSelect": "single",
+			},
+			"aaSorting": [[0, "asc"]],
+			"bSortClasses": false,
+			"bProcessing": true,
+			"bStateSave": true,
+			"bJQueryUI": true,
+			"aLengthMenu": [[25, 50, 100, -1], [25, 50, 100, "All"]],
+			"iDisplayLength": 25,					// Number of rows to display on a single page when using pagination.
+			"sPaginationType": "full_numbers",
+			// "language": { "emptyTable": "Please wait, fetching data..." },
+			language: $.DataTableLanguage
+		});
+		// Refresh the statelisttable with data from the CCU
+		refreshStatelistTable();
+	}
+	/**
+	 * Document ready = show the statelisttable
+	 */
+	$(document).ready(function() {
+	  showStatelistTable();
+	});  
+</script>

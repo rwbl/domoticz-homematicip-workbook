@@ -1,0 +1,60 @@
+--[[
+File: alertindicator.dzvents
+Date: 20230323
+Author: Robert W.B. Linn
+Set the datapoint STATE of a HmIP-MOD-OC8 Channel = switch ON or OFF.
+The Domoticz Virtual Sensor Switch for testing:
+Idx,Hardware,Name,Type,SubType,Data
+88,VirtualSensors,Alert Indicator,Light/Switch,Selector Switch, Set Level: 30 %
+If a level gets selected, the other levels are switched off:
+Click RED, turns off selector levels GREEN, BLUE
+Dependencies:
+Homematic CCU CCU-Jack Addon
+]]--
+-- url to ccu-jack to et the state of a device channel nr
+local URL_CCU = 'http://ccu-ip:port:2121/device/#SERIALNR#/#CHANNELNR#/STATE/~pv';
+-- define the unique (across all dzVents) callback
+local RES_CCU = "RESSETSTATEOC8";
+-- homematic ip hmip-mod-oc8 serial nr (get from the WebUI)
+local OC8_SERIALNR = '000D1BE9A4E733'
+-- domoticz switch device to trigger change of channel 10,14,18 of the HmIP-MOD-OC8
+local IDX_SWITCH = 88;
+local channels = {
+    channel10 = {level = 10, serialnr = OC8_SERIALNR, channelnr = 10, state = false},
+    channel14 = {level = 20, serialnr = OC8_SERIALNR, channelnr = 14, state = false},
+    channel18 = {level = 30, serialnr = OC8_SERIALNR, channelnr = 18, state = false},
+    }
+-- Set selected selector state to true all other to false. Level off set all states to false.
+-- item - device item data, the item.level is used to select the channel, item.state is the level name
+-- response - Unique response for the HTTP XML-API request
+local function setState(domoticz, item, response)
+    local data = {}
+    local url = ""
+    for key, value in pairs(channels) do
+        url = URL_CCU:gsub('#SERIALNR#', value.serialnr):gsub('#CHANNELNR#', value.channelnr)
+        if (item.level == value.level) then
+            data = { v = true }
+            domoticz.openURL({url = url, method = 'PUT', postData = data, callback = response})
+        else
+            data = { v = false }
+            domoticz.openURL({url = url, method = 'PUT', postData = data, callback = response})
+        end
+    end
+end
+return {
+	on = { devices = { IDX_SWITCH }, httpResponses = { RES_CCU } },
+	execute = function(domoticz, item)
+		if (item.isDevice) then
+            setState(domoticz, item, RES_CCU)
+		end
+		if (item.isHTTPResponse) then
+			if (item.statusCode == 200) then
+                if (item.callback == RES_CCU) then
+                    domoticz.log(item.statusText)
+                end
+			else
+				domoticz.log('[ERROR] Request:' .. item.statusText, domoticz.LOG_ERROR)
+			end
+		end
+    end
+}

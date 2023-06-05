@@ -1,0 +1,77 @@
+--[[
+File:           postbox_notifier.dzvents
+Date:           20210930
+Author:         Robert W.B. Linn
+Trigger:        timer, device
+Dependencies:   postbox_notifier.script
+Description:
+If the switch "postbox notifier state"(idx=189) is turned on via a HomeMatic script, than sent a notification & turn hue indicaor on.
+The notification contains a hint to turn the switch off manually.
+]]--
+-- Domoticz Idx
+-- Switch to keep the state of the postbox flap
+local IDX_POSTBOXNOTIFIER_STATE = 189
+-- hue bulb used to indicate if postbox has been opened
+local IDX_HUE = 355
+-- hue color indicating postbox has bee openend = mid blue
+local HUE_BLUE = 240
+-- Timer rules
+-- at midnight reset the state else check every hour
+local TIMERRULEA = 'at 00:30'
+local TIMERRULEB = 'every hour between 8:00 and 20:00'
+-- local TIMERRULEB = 'every 2 minutes'
+-- Set the hue on with the color
+-- setPostboxIndicator(domoticz, IDX_HUE, HUE_BLUE)
+-- Log example: setcolbrightnessvalue: ID: 163, bri: 50, color: '{m: 3, RGB: 0000ff, CWWW: 0000, CT: 0}'
+local function setPostboxIndicator(domoticz, idx, hue)
+    local level = 20    -- 10 for low brightness
+    local iswhite = false
+    domoticz.devices(idx).setHue(hue, level, iswhite)
+end
+return {
+    -- Combined rules defined
+	on = {
+            timer = { TIMERRULEA, TIMERRULEB },
+            -- Check if the state of the postbox notifier switch has changed to on as triggered by homematic script
+            devices = { IDX_POSTBOXNOTIFIER_STATE },
+    },
+	data = {
+	    -- set a flag if already notified
+	    pbnnotified = { initial = 0 }
+    },
+    -- Handle rules for the item isDevice, isTimer
+	execute = function(domoticz, item)
+        -- Handle state change
+        if (item.isDevice) then
+    		domoticz.log('Device ' .. domoticz.devices(IDX_POSTBOXNOTIFIER_STATE).name .. ' changed ' .. domoticz.devices(IDX_POSTBOXNOTIFIER_STATE).state .. ' = ' .. tostring(domoticz.data.pbnnotified) )
+            -- Send email notification in case device is switched on, i.e postbox flap opened
+            -- Only the subject is used in the email
+            if (domoticz.devices(IDX_POSTBOXNOTIFIER_STATE).state == 'On') and (domoticz.data.pbnnotified == 0) then
+                local subject = ('Briefkasten geöffnet (%s)'):format(domoticz.helpers.isnowshort(domoticz))
+                local message = 'Aktion: Status zurücksetzen.\r\n'
+                domoticz.data.pbnnotified = 1
+                -- notify via email
+                domoticz.notify(subject, message, domoticz.PRIORITY_HIGH)
+                -- update the alert message with level orange (3) = does not sent an email if user var TH_ALERTTOEMAIL = 4
+                domoticz.helpers.alertmsg(domoticz, domoticz.ALERTLEVEL_YELLOW, subject)
+		        domoticz.log('POSTBOXNOTIFIER ' .. domoticz.devices(IDX_POSTBOXNOTIFIER_STATE).name .. ' notification sent: ' .. subject .. ' (' .. message .. ')' )
+                setPostboxIndicator(domoticz, IDX_HUE, HUE_BLUE)
+            end
+            -- Reset the notify flag if the switch is manually switched Off
+            if (domoticz.devices(IDX_POSTBOXNOTIFIER_STATE).state == 'Off') and (domoticz.data.pbnnotified == 1) then
+                local message = ('Briefkasten zurückgesetzt (%s)'):format(domoticz.helpers.isnowshort(domoticz))
+                domoticz.helpers.alertmsg(domoticz, domoticz.ALERTLEVEL_YELLOW, message)
+                domoticz.devices(IDX_HUE).switchOff()
+                domoticz.data.pbnnotified = 0
+		    end
+        end
+        -- check if the item is a timer then reset switch depending state
+		if (item.isTimer) then
+            if (domoticz.devices(IDX_POSTBOXNOTIFIER_STATE).state == 'On') then
+                domoticz.devices(IDX_POSTBOXNOTIFIER_STATE).switchOff()
+                domoticz.devices(IDX_HUE).switchOff()
+                domoticz.data.pbnnotified = 0
+            end
+		end
+    end
+}

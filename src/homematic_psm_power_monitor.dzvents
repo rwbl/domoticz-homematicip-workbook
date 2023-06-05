@@ -1,0 +1,38 @@
+--[[
+File:           homematic_psm_power_monitor.dzvents
+Date:           20230525
+Author:         Robert W.B. Linn
+Trigger:        timer, devices, httpresponses
+Dependencies:   XML-API
+Description:
+Monitor the power of a HmIP-PSM device.
+Set an Alert message if the power exceeds certain threshold.
+Domoticz Log (test every minute)
+2023-05-25 12:12:57.471 Status: EventSystem: reset all device statuses...
+2023-05-25 12:13:00.579 Status: dzVents: Info: ------ Start internal script: homematic_psm_power_monitor:, trigger: "every minute"
+2023-05-25 12:13:00.598 Status: dzVents: Info: ------ Finished homematic_psm_power_monitor
+2023-05-25 12:13:00.598 Error: dzVents: Error: (3.1.8) [WARNING] Power 48.2 exceeds theshold 40.0 
+]]--
+-- Define IDX Domoticz devices
+local IDX_PSM_MAKELAB = 58      -- Energy device general/kwh
+local IDX_ALERT = 13            -- Alert device
+-- Set the power threshold (W)
+local ACTUALWATT_THRESHOLD = 40
+-- Define the timer rule
+-- local TIMERRULE = 'every 5 minutes'
+local TIMERRULE = 'every minute'    -- Tests
+return {
+	on = {
+		timer = { TIMERRULE },
+	},
+	execute = function(domoticz, timer)
+        -- Get the actual watt from the device
+        local actualwatt = domoticz.devices(IDX_PSM_MAKELAB).actualWatt
+        -- Check against threshold
+        if actualwatt > ACTUALWATT_THRESHOLD then
+            local msg = string.format('[WARNING] Power %.1f exceeds theshold %.1f', actualwatt, ACTUALWATT_THRESHOLD)
+            domoticz.log(msg, domoticz.LOG_ERROR)
+            domoticz.devices(IDX_ALERT).updateAlertSensor(domoticz.ALERTLEVEL_YELLOW, msg)
+        end
+	end
+}

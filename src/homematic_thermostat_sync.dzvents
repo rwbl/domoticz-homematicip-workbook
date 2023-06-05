@@ -1,0 +1,31 @@
+--[[
+File:           homematic_thermostat_sync.dzvents
+Date:           20230524
+Author:         Robert W.B. Linn
+Trigger:        customevent
+Dependencies:   thermostat_sync.script (Homematic)
+Description:
+Sync the domoticz thermostat setpoint with the homematic thermostat setpoint.
+The event is triggered by the homematic setpoint change program ("Domoticz Temperature Sync").
+]]--
+-- Define the customevent name
+-- Ensure same is used in the homematic script thermostat_sync.script
+local CUSTOMEVENT_NAME = "thermostat_sync"
+return {
+	on = { customEvents = { CUSTOMEVENT_NAME } },
+	execute = function(domoticz, item)
+		if (item.isCustomEvent) then
+		    -- {["setpoint"]=23.0, ["temperature"]=22.1, ["sync"]=1, ["id"]=3489, ["idx"]=342}
+            -- domoticz.log(item.json);
+            if item.json.sync == 1 then
+                domoticz.devices(item.json.idxsp).updateSetPoint(item.json.setpoint).silent()
+                domoticz.devices(item.json.idxpv).updateTemperature(item.json.temperature).silent()
+                domoticz.log(string.format("Thermostat %s: SP=%.2f, PV=%.2f.", 
+                    domoticz.devices(item.json.idxsp).name, 
+                    item.json.setpoint,
+                    item.json.temperature
+                    ))
+            end
+		end
+	end
+}

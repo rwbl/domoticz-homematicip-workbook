@@ -1,0 +1,106 @@
+--[[
+File:           homematic_thermostat_setpoint.dzvents
+Date:           20230524
+Author:         Robert W.B. Linn
+Trigger:        device, httpresponse
+Dependencies:   XML-API
+Description:
+Homematic set thermostat setpoint via XML-API request.
+Set a new setpoint for a homematicIP thermostat is triggered by a Domoticz thermostat device setpoint change.
+The homematic setpoint new value is set by the xml-api statechange.cgi script:
+http://ccu-ip/addons/xmlapi/statechange.cgi?ise_id=12345&new_value=NN.NN
+The required thermostat ise_id is obtained from the XML-API statelist.cgi script:
+http://ccu-ip/addons/xmlapi/statelist.cgi
+The ise_id of the device channel 1 attribute SET_POINT_TEMPERATURE is used for the xml-api statechange script:
+<datapoint name="HmIP-RF.000A18A9A64DAC:1.SET_POINT_TEMPERATURE" type="SET_POINT_TEMPERATURE" ise_id="1433" value="5.000000" valuetype="4" valueunit="°C" timestamp="1684913929" operations="7"/>
+For this example, setting a new setpoint via url:
+http://ccu-ip/addons/xmlapi/statechange.cgi?ise_id=1433&new_value=20
+Test setting new thermostat setpoint via CURL Example:
+curl http://ccu-ip/addons/xmlapi/statechange.cgi?ise_id=1433&new_value=20
+or via web browser
+HTTP Request GET
+http://ccu-ip/addons/xmlapi/statechange.cgi?ise_id=1433&new_value=20
+HTTP Response XML tree structure:
+<result><changed id="1433" new_value="20"/></result>
+To turn the thermostat off, set the value to 0.
+Domoticz LOg
+The log show changing the setpoint for the domoticz thermostat device makelab.
+2023-05-24 10:27:16.785 VirtualSensors: Thermostat (MakeLab)
+2023-05-24 10:27:16.776 Status: User: admin initiated a SetPoint command
+2023-05-24 10:27:16.969 Status: dzVents: Info: Handling events for: "MakeLab", value: "5.50"
+2023-05-24 10:27:16.969 Status: dzVents: Info: RES-ETRV: ------ Start internal script: homematic_thermostat_setpoint: Device: "MakeLab (VirtualSensors)", Index: 336
+2023-05-24 10:27:16.969 Status: dzVents: Info: RES-ETRV: setThermostatSetpoint device=makelab, idx=1433, ise_id=336, setpoint=5.5
+2023-05-24 10:27:16.969 Status: dzVents: Info: RES-ETRV: url=http://ccu-ip:port/addons/xmlapi/statechange.cgi?ise_id=1433&new_value=5.5
+2023-05-24 10:27:16.969 Status: dzVents: Info: RES-ETRV: ------ Finished homematic_thermostat_setpoint
+2023-05-24 10:27:16.970 Status: EventSystem: Script event triggered: /home/pi/domoticz/dzVents/runtime/dzVents.lua
+2023-05-24 10:27:18.904 Sending SetPoint to device....
+2023-05-24 10:27:18.908 VirtualSensors: Thermostat (MakeLab)
+2023-05-24 10:27:18.711 Status: dzVents: Info: Handling httpResponse-events for: "RES-ETRV"
+2023-05-24 10:27:18.711 Status: dzVents: Info: RES-ETRV: ------ Start internal script: homematic_thermostat_setpoint: HTTPResponse: "RES-ETRV"
+2023-05-24 10:27:18.714 Status: dzVents: Info: RES-ETRV: callback=RES-ETRV statustext=OK
+2023-05-24 10:27:18.714 Status: dzVents: Info: RES-ETRV: ------ Finished homematic_thermostat_setpoint
+]]--
+-- Define the XML-API URL to set the datapoint new value for the setpoint
+local URL_XMLAPI = 'http://ccu-ip:port/addons/xmlapi/statechange.cgi?ise_id=#ID#&new_value=#SETPOINT#'
+-- HTTP Response - MUST be UNIQUE across all events
+local RES_XMLAPI = 'RES-ETRV'
+-- Set the loglevel
+local LOG_LEVEL = domoticz.LOG_INFO --domoticz.LOG_DEBUG
+-- Table with all thermostat devices map homematic xml-api attribute SET_POINT_TEMPERATURE ise_id against domoticz idx
+-- Get the attribute SET_POINT_TEMPERATURE ise_id from the xml-api statelist script
+local idxDevices = {336,337,338,339,340,341,342}
+local tableThermostats = {
+                    ["makelab"]     = {["ise_id"]="1433",["idx"]=336},
+                    ["esszimmer"]   = {["ise_id"]="1727",["idx"]=337},
+                    ["wohnzimmer1"] = {["ise_id"]="1673",["idx"]=338},
+                    ["wohnzimmer2"] = {["ise_id"]="1623",["idx"]=339},
+                    ["flur"]        = {["ise_id"]="1573",["idx"]=340},
+                    ["bad"]         = {["ise_id"]="1825",["idx"]=341},
+                    ["dusche"]      = {["ise_id"]="1875",["idx"]=342}
+                }
+-- Set thermostat setpoint for a device selected from the tableThermostats
+-- deviceIdx - Domoticz idx of the thermostat device
+-- setThermostatSetpoint(domoticz, item.id)
+function setThermostatSetpoint(domoticz, deviceIdx)
+    -- Get the thermostat data from the thermostats table matching the deviceidx
+    for key, value in pairs(tableThermostats) do
+        if value.idx == deviceIdx then
+            -- Set the url
+            -- Example url: http://ccu-ip/addons/xmlapi/statechange.cgi?ise_id=1433&new_value=20
+            local url = URL_XMLAPI
+            -- Replace the placeholder for the ise_id and the setpoint
+            url = string.gsub(url, '#ID#', value.ise_id)
+            url = string.gsub(url, '#SETPOINT#', domoticz.devices(value.idx).setPoint)
+            -- Log
+            domoticz.log(string.format('setThermostatSetpoint device=%s, idx=%d, ise_id=%d, setpoint=%.1f',
+                key, value.ise_id, value.idx, domoticz.devices(value.idx).setPoint))
+            -- Submit xml-api url
+            domoticz.log(string.format('url=%s', url))
+        	domoticz.openURL({ url = url, method = 'GET', callback = RES_XMLAPI })
+            return
+        end
+    end
+end
+return {
+	on = { 
+        -- Listen to domoticz thermostat device changes
+        -- The devices are defined in the devices table holding the domoticz device idx
+	    devices = idxDevices, 
+	    -- Listen to http response from the xml-api statechange script setting the new setpoint
+	    httpResponses = { RES_XMLAPI } 
+    },
+    logging = { 
+        level = LOG_LEVEL, marker = RES_XMLAPI
+    },		
+	execute = function(domoticz, item)
+        -- The domoticz device has changed its setpoint
+		if (item.isDevice) then
+		    -- Set the homematic device setpoint via xml-api http request
+		    setThermostatSetpoint(domoticz, item.id)
+        end
+        -- Handle HTTP response from the xml-api request
+		if (item.isHTTPResponse) then
+		    domoticz.log(string.format('callback=%s statustext=%s', item.callback, item.statusText))
+        end
+	end
+}

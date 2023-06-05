@@ -1,0 +1,62 @@
+! File: status-display-update.script
+! Date: 20210527
+! Author: Robert W.B. Linn
+!
+! Update all lines of the Status-display HmIP-WRCD.
+! The command to update the display is set by the system variable StatusDisplayCommand (ise_id 4930), String
+! The result of updating the display using the COMBINDED_PARAMETER is logged in the sysvar DomoticzLog
+! See README.md
+! Define Testmode true or false
+boolean TESTMODE = true;
+if (TESTMODE == true) { WriteLine("TESTMODE"); }
+! Constants
+string CHECK_DDC_PARAMETER = "DDC=true";
+! Result object from GetObject
+var resultObject;
+! Get the actual date and time DD.MM HH:MM
+string actDate = system.Date("%d.%m"); ! sDate = "09.08"; "%d.%m.%Y" = "09.08.2020"; 
+string actTime = system.Date("%H:%M"); ! sTime = "07:32"; "%H:%M:%S") = "07:32:00"; 
+! Declare sysvar DomoticzLog holding the result of updating the display state with the combined parameter
+string sysvarDomoticzLogName = "DomoticzLog";
+string sysvarDomoticzLogValue = "OK";
+string logPrefix = "Status Display Update: ";
+! Declare status-display device datapoint to set the state with he combined parameter
+string deviceDatapoint = "HmIP-RF.002A5D8989D599:3.COMBINED_PARAMETER";
+! Declare the name of the sysvar holding the display combined parameter
+string sysvarCombinedParameterName = "StatusDisplayCombinedParameter";
+! Declare the var holding the combined parameter value as string
+string sysvarCombinedParameterValue = "";
+! Get the value of the sysvar - this is the combined parameter
+! In TESTMODE the value is direct taken from the sysvar name, else the "$src$" value
+if (TESTMODE == true) { sysvarCombinedParameterValue = dom.GetObject(sysvarCombinedParameterName).Value(); }
+! Read the combined parameter from the source, i.e., sysvar
+if (TESTMODE == false) { sysvarCombinedParameterValue = dom.GetObject("$src$").Value(); }
+! Replace special characters if combined parameter submitted via url (xml-api) = %2C or %2c=Comma ,
+sysvarCombinedParameterValue = sysvarCombinedParameterValue.Replace("%2c",",");
+sysvarCombinedParameterValue = sysvarCombinedParameterValue.Replace("%2C",",");
+if (TESTMODE == true) { WriteLine(sysvarCombinedParameterName # ", Value=" # sysvarCombinedParameterValue); }
+! Set the device state, i.e. update with the combined parameter. important to commit with DDC=true
+! Example: dom.GetObject("HmIP-RF.SERIENNR:3.COMBINED_PARAMETER").State("{DDBC=WHITE,DDTC=BLACK,DDI=1,DDA=CENTER,DDS=Zeile1,DDID=1},{DDBC=WHITE,DDTC=BLACK,DDI=2,DDA=CENTER,DDS=Zeile2,DDID=2},{DDBC=WHITE,DDTC=BLACK,DDI=3,DDA=CENTER,DDS=Zeile3,DDID=3},{DDBC=WHITE,DDTC=BLACK,DDI=5,DDA=CENTER,DDS=Zeile4,DDID=4},{DDBC=WHITE,DDTC=BLACK,DDI=3,DDA=CENTER,DDS=Zeile5,DDID=5,DDC=true},{R=1,IN=5,ANS=4}")
+if (TESTMODE == true) { WriteLine("Progres - Set State ..."); }
+! Check if the combined parameter has at least the command DDC=true
+if (sysvarCombinedParameterValue.Contains(CHECK_DDC_PARAMETER) == false) {
+  sysvarDomoticzLogValue = "ERROR - Check combined Parameter:"#sysvarCombinedParameterValue;
+}
+else {
+  ! Set the state
+  resultObject = dom.GetObject(deviceDatapoint).State(sysvarCombinedParameterValue);
+  if (resultObject) { 
+    ! OK
+  } else {
+    sysvarDomoticzLogValue = "ERROR - Status Display Update. Check combined parameter.";
+  }
+}
+! Add datetime & prefix
+sysvarDomoticzLogValue = logPrefix + actDate + " " + actTime + ":" + sysvarDomoticzLogValue;
+if (TESTMODE == true) { WriteLine("SysVar Update:"#sysvarDomoticzLogName#", Value="#sysvarDomoticzLogValue); }
+resultObject = dom.GetObject(sysvarDomoticzLogName).State(sysvarDomoticzLogValue);  
+if (TESTMODE == true) { 
+  if (resultObject) { WriteLine(dom.GetObject(sysvarDomoticzLogName).Value()); }
+}
+! Close
+if (TESTMODE == true) { WriteLine("DONE"); }

@@ -1,0 +1,28 @@
+! File: remote_control.script
+! Date: 20210311
+! Author: Robert W.B. Linn
+! Function: Remote Control
+! If buttons 1-8 of the remote control HmIP-RC8 is pressed, send custom event with buttonnr to Domoticz to action accordingly.
+! Via cuxd an http api request for a customevent is submitted to domoticz.
+! The Domoticz custom event data parameter must be in json format.
+! Example: {["channel"]="HmIP-RC8 000B1BE98D94DE:1", ["buttonnr"]=1}
+string cAmp = "&";
+! Domoticz production system url base for the http api request
+string urlBase = "'http://domoticz-ip:port/json.htm";
+! Custom event name = MUST match name of the Domoticz dzVents script
+string customEvent = "homematic_remote_control";
+! Get the object datapoint of the remote control from $src$
+object objDatapoint = dom.GetObject ("$src$");
+if (objDatapoint) {
+    ! Channelobject 1-8 according buttons 1-8, i.e.,  HmIP-RC8 000B1BE98D94DE:1 
+    var objChannel = dom.GetObject(objDatapoint.Channel());
+    ! Get the buttonnr 1-8 from the channel 
+    integer buttonNr = (objChannel.Name().StrValueByIndex(":",1)).ToInteger();
+    ! Custom event data parameter must be in json format
+    string data = '{"channel":"'#objChannel#'","buttonnr":'#buttonNr#'}';
+    ! Build the Domoticz http rest request url to update the device using customevent
+    string urlRequest = urlBase#"?type=command"#cAmp#"param=customevent"#cAmp#"event="#customEvent#cAmp#"data="#data#"'";
+    ! Run the command without a return result
+    var cmdRes = dom.GetObject("CUxD.CUX2801001:1.CMD_EXEC").State("wget -q -O - "#urlRequest);
+    WriteLine("CMD_EXEC: " # cmdRes);
+}

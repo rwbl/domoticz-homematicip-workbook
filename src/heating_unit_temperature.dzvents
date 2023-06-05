@@ -1,0 +1,60 @@
+--[[
+File: heating_unit_temperature.dzvents
+Date: 20230524
+Author: Robert W.B. Linn
+Trigger:        timer, httpresponses
+Dependencies:   XML-API
+Description:
+Update the Heating Unit Flow and Return Temperature measured by Homematic HmIP-STE2-PCB device.
+The sensor data is pulled Homematic pushes to update the device data.
+The event is triggered by the homematic program ("Heating Unit Temperature") sending an HTTP JSON/API request for a Custom Event.
+The T1 temperature (Flow or Vorlauf)of the HmIP-STE2-PCB device is used.
+]]--
+-- Define the datapoint ise_id for the attribute ACTUAL_TEMPERATURE of the device channels 1 & 2.
+-- Use the XML-API script statelist (http://domoticz-ip/config/xmlapi/statelist.cgi) to get the device datapoints
+-- <datapoint name="HmIP-RF.00281F2996368C:1.ACTUAL_TEMPERATURE" type="ACTUAL_TEMPERATURE" ise_id="5729" value="20.200000" valuetype="4" valueunit="°C" timestamp="1672744699" operations="5"/>
+local DATAPOINT_ISE_ID_T1 = 5729;
+local DATAPOINT_ISE_ID_T2 = 5732;
+-- Define the URL to get the sensor data from the CCU using the XML-API
+local URL_XMLAPI = 'http://ccu-ip:port/config/xmlapi/state.cgi?datapoint_id='..DATAPOINT_ISE_ID_T1..','..DATAPOINT_ISE_ID_T2;
+-- define the unique (across all dzVents) callback
+local RES_XMLAPI = "RES_HEATING_UNIT_TEMPERATURE";
+-- Define the Domoticz temperature devices (virtual sensors)
+local IDX_HEATING_UNIT_T1 = 375;
+local IDX_HEATING_UNIT_T2 = 397;
+-- Timer - use every minute for tests
+local TIMERRULE = 'every 5 minutes' 
+-- local TIMERRULE = 'every minute' 
+-- Helpers
+function round(number, decimals)
+    local power = 10^decimals
+    return math.floor(number * power) / power
+end
+return {
+	on = { timer = { TIMERRULE }, httpResponses = { RES_XMLAPI } },
+	execute = function(domoticz, item)
+	    -- check if the item is a timer, then request information
+		if (item.isTimer) then
+		    domoticz.openURL({url = URL_XMLAPI, method = 'GET', callback = RES_XMLAPI})
+		end
+		
+		-- check if the item is a httpresponse from the openurl callback
+		if (item.isHTTPResponse) then
+			if (item.statusCode == 200) then
+			    -- Select callback - in this case there is only one
+                if (item.callback == RES_XMLAPI) then
+                    -- Get the key value from the http response:
+                    -- <state><datapoint ise_id="5729" value="44.100000"/><datapoint ise_id="5732" value="40.400000"/></state>
+                    -- Update the domoticz devices
+                    local valuet1 = tonumber(domoticz_applyXPath(item.data,'//datapoint[@ise_id="'..DATAPOINT_ISE_ID_T1..'"]/@value'))
+                    domoticz.devices(IDX_HEATING_UNIT_T1).updateTemperature(valuet1);
+                    local valuet2 = tonumber(domoticz_applyXPath(item.data,'//datapoint[@ise_id="'..DATAPOINT_ISE_ID_T2..'"]/@value'))
+                    domoticz.devices(IDX_HEATING_UNIT_T2).updateTemperature(valuet2);
+                    domoticz.log(('T1=%.1f, T2=%.1f'):format(valuet1, valuet2))
+                end
+			else
+				domoticz.log('[ERROR] Request:' .. item.statusText, domoticz.LOG_ERROR)
+			end
+		end
+ end
+}

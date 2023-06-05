@@ -1,0 +1,40 @@
+--[[
+File:           homematic_thermostat_onoff.dzvents
+Date:           20230524
+Author:         Robert W.B. Linn
+Trigger:        customevent
+Dependencies:   homematic_thermostat_setpoint.dzvents
+Description:
+Switch a thermostat on or off triggered by the web ui quick access mobile (qam) buttons on/off for a selected thermostat.
+The data key (provided by qam) is in json format: {["idx"]=NNN, ["state"]=0|1}. The key state 0=off,1=on.
+The setpoint values for on or off are defined by two domoticz uservariables (DEF_THERMOSTAT_ON, DEF_THERMOSTAT_OFF).
+Changing the domoticz device setpoint triggers setting the homematic thermostat via the domoticz event homematic_thermostat_setpoint.
+]]--
+-- Define the unique custom event name.
+local CUSTOMEVENT_NAME = "homematic_thermostat_onoff"
+-- User Vaiables for the thermostat on/off values
+-- idx=21, name=DEF_THERMOSTAT_ON, type=Integer, value=21
+local IDX_DEF_THERMOSTAT_ON = 21;   
+-- idx=22, name=DEF_THERMOSTAT_OFF, type=Integer, value=5
+local IDX_DEF_THERMOSTAT_OFF = 22;  
+return {
+    -- Listen to customevent trigger
+	on = { customEvents = {	CUSTOMEVENT_NAME } },
+	execute = function(domoticz, item)
+	    -- Triggered item is a customevent
+		if (item.isCustomEvent) then
+		    -- {["idx"]=336, ["state"]=0}
+            domoticz.log(item.json);
+            -- Init the setpoint state on with setpoint value defined by user variable
+            local setpoint = domoticz.variables(IDX_DEF_THERMOSTAT_ON).value;
+            -- Set setpoint to off value 
+            if item.json.state == 0 then
+                setpoint = domoticz.variables(IDX_DEF_THERMOSTAT_OFF).value;
+            end
+            -- Update the domoticz device setpoint
+            -- This is done by setting the homematic device via the event homematic_thermostat_setpoint
+            domoticz.devices(item.json.idx).updateSetPoint(setpoint)
+            domoticz.log(string.format("Thermostat %s setpoint changed to %.2f.", domoticz.devices(item.json.idx).name, setpoint))
+		end
+	end
+}

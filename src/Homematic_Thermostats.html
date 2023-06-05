@@ -1,0 +1,422 @@
+<!--
+File:	Homematic_Thermostats.html (custom page located in the domoticz www/templates folder)
+Date:	20230602
+Author:	Robert W.B. Linn
+List in a datatable, all homematic thermostat devices with selected datapoints:
+ACTUAL_TEMPERATURE, SET_POINT_TEMPERATURE, LEVEL, OPERATING_VOLTAGE.
+The table has 7 columns:
+[Index=Title (abbreviation)]
+0=Device (device_name), 1=Setpoint (sp), 2=Temperature (pv), 3=Delta (dt), 4=Level (lvl), 5=Voltage (v),6=Setpoint_ID (spiseid)
+Column 6 is hidden.
+Cell Checks
+Additional check for specific colums in a row i.e., cell condition.
+* Level col 4: if the level equal 100 set cell text color to red. To indicate thermostat valve is fully opened.
+* Voltage col 5: if the voltage < 2.5 set cell text color to red. To indicate the thermostat battery is getting close to low bat state.
+Notes
+* The URL for the XML-API statelist cgi script is defined as constant URL_STATELIST (set accordingly).
+* The URL for the XML-API statechange cgi script is defined as constant URL_STATECHANGE (set accordingly).
+* ENSURE to clear the browser cache after making changes and re-loading the page.	
+-->
+<div id="thermostatlistmain" class="container">
+	<!-- Page title -->
+	<h2 class="page-header" id="pagetitle" data-i18n="Homematic Thermostats"></h2>
+	<!-- 
+		Define the table header with id thermostattable
+	-->
+    <table class="display" id="thermostattable" border="0" cellpadding="0" cellspacing="0" width="100%">
+        <thead>
+            <tr>
+				<th align="center" data-i18n="Device"></th>
+				<th align="center" data-i18n="Setpoint"></th>
+				<th align="center" data-i18n="Temperature"></th>
+				<th align="center" data-i18n="Delta"></th>
+				<th align="center" data-i18n="Level"></th>
+				<th align="center" data-i18n="Voltage"></th>
+				<th align="center" data-i18n="Setpoint_ID"></th>
+            </tr>
+        </thead>		
+    </table>
+	<!--
+		Action buttons
+	-->
+    <table class="display" border="0" cellpadding="0" cellspacing="0" width="100%">
+		<tr>
+			<td align="right">
+				<!-- Refresh the thermostattable by calling the function to refresh the thermostattable -->
+				<a class="btnstyle3" onclick="refreshThermostatTable();" data-i18n="Refresh"></a>
+			</td>
+		</tr>
+    </table>
+	<p>
+	<!-- 
+		Thermostat Change Setpoint
+		Show the datapoints device name, setpoint and ise_id.
+		The setpoint can be changed via input field followed by button set or by buttons min and max.
+		The min and max values are hardcoded below.
+	-->
+	<h2 data-i18n="Thermostat Setpoint Change"></h2><br>
+	<table class="display" id="datapointtable" border="0" cellpadding="0" cellspacing="20">
+		<tr id="datapointdevicenamerow">
+			<td align="right" style="width:110px"><label for="datapointdevicename"><span data-i18n="Name"></span>:</label></td>
+			<td><input type="text" id="datapointdevicename" style="width: 250px; padding: .2em;" class="text ui-widget-content ui-corner-all" readonly></td>
+		</tr>		
+		<tr id="datapointsetpointrow">
+			<td align="right" style="width:110px"><label for="datapointsetpoint"><span data-i18n="Setpoint"></span>:</label></td>
+			<td><input type="number" id="datapointsetpoint" style="width: 100px; padding: .2em;" class="text ui-widget-content ui-corner-all" min="0" max="25" pattern="[0-9]+([\.,][0-9]+)?" step="0.5"></td>
+		</tr>
+		<tr id="datapointise_idrow">
+			<td align="right" style="width:110px"><label for="datapointise_id"><span data-i18n="ID"></span>:</label></td>
+			<td><input type="text" id="datapointise_id" style="width: 100px; padding: .2em;" class="text ui-widget-content ui-corner-all" readonly></td>
+		</tr>
+		<tr>
+			<td colspan="4">
+				<!-- Action buttons to set the new setpoint. Value -1 takes the value from the input field -->
+				<a class="btnstyle3" onclick="setThermostatSetpoint();" data-i18n="Set"></a>&nbsp;
+				<a class="btnstyle3-dis" onclick="setThermostatSetpointMinMax(5);" data-i18n="Min"></a>&nbsp;
+				<a class="btnstyle3-dis" onclick="setThermostatSetpointMinMax(25);" data-i18n="Max"></a>
+			</td>
+		</tr>	
+	</table>
+</div>
+<!--
+JAVASCRIPT 
+-->
+<script type="text/javascript" charset="utf-8">
+	/**
+	 * Convert UNIX timestamp to date time string.
+	 * @param (Number) unixtime - Number of seconds since Unix epoch.
+	 * @returns (String) YYYY-MM-DD HH:MM:SS 
+	 */
+	function convertUnixTime(unixtime) {
+		var result = "";
+		if (unixtime > 0) {
+			var u = new Date(unixtime * 1000);
+			result = u.getUTCFullYear() +
+				'-' + ('0' + u.getUTCMonth()).slice(-2) +
+				'-' + ('0' + u.getUTCDate()).slice(-2) + 
+				' ' + ('0' + u.getUTCHours()).slice(-2) +
+				':' + ('0' + u.getUTCMinutes()).slice(-2) +
+				':' + ('0' + u.getUTCSeconds()).slice(-2) // +
+				// '.' + (u.getUTCMilliseconds() / 1000).toFixed(3).slice(2, 5) 
+		};
+		return result;
+	};
+	/**
+	 * Clear the thermostat fields used to change the setpoint.
+	 */
+	function clearFields() {
+		$("#datapointtable #datapointdevicename").val('');
+		$("#datapointtable #datapointsetpoint").val('');
+		$("#datapointtable #datapointise_id").val('');	
+	}
+	/**
+	 * Show an error alert in a dialog.
+	 * @param (String) msg - Error message to display.
+	 */
+	function AlertError(msg) {
+		var errormsg = '<br><div style="background-color: #FF0000; color: #FFFFFF; font-weight: bold; font-size: 16px; text-align: center;">ERROR</DIV>';
+		errormsg += '<br><p>' + msg + '</p>';
+		HideNotify();
+		bootbox.alert($.t(errormsg));
+	}
+	/**
+	 * Set new thermostat setpoint by submitting xml-api statechange request.
+	 * @param (Number) ise_id - Number with the device datapoint ise_id for the attribute SET_POINT_TEMPERATURE.
+	 * @param (Number) value - Float with 1 digit to set the new setpoint.
+	 */
+	function setThermostatSetpoint() {
+		// Get the ise_id of the device datapoint SET_POINT_TEMPERATURE
+		var ise_id = $("#datapointtable #datapointise_id").val();
+		// Set the new setpoint. If -1 then take setpoint from input field
+		var value = $("#datapointtable #datapointsetpoint").val();
+		console.log('stateChangeThermostatSetpoint: ise_id=' + ise_id + ',value=' + value);
+		// Set the default url for the xml-api scripts
+		var URL_STATECHANGE = "http://ccu-ip:port/addons/xmlapi/statechange.cgi?ise_id={ISE_ID}&new_value={VALUE}";
+		// Set the statechange url - replace placeholder
+		var url_statechange = URL_STATECHANGE;
+		url_statechange = url_statechange.replace('{ISE_ID}', ise_id);
+		url_statechange = url_statechange.replace('{VALUE}', value);
+		console.log(url_statechange);
+		// XML-API ajax call
+		$.ajax({
+			url: url_statechange,
+			async: false,
+			dataType: 'xml',
+			cache: false,
+            type: "GET",
+			success: function (xml) {
+				// The http response is an xml tree structure:
+				// <?xml version="1.0" encoding="ISO-8859-1" ?><result><changed id="1433" new_value="5.0" /></result>
+				// Get the node changed
+				$changed = $(xml).find('changed');
+				console.log('stateChangeThermostatSetpoint: changed id=' + $changed.attr('id') + ',new_value=' + $changed.attr('new_value'));
+				// Check attribute new_value = value. if not found show error message
+				if ($changed.attr('new_value') === undefined) {
+					AlertError('Can not set new thermostat setpoint.<br>Check the setpoint ID (datapoint ise_id)');
+				}
+				else {
+					// Wait 1 second and refresh the thermostattable
+					setTimeout(function () {
+						HideNotify();
+						refreshThermostatTable();
+					}, 1000);
+				}
+			},
+			error: function (error) {
+				AlertError('Can not set the new thermostat setpoint.<br>Check the statechange URL:<br>' + url_statechange);
+			}
+		});	
+		console.log('stateChangeThermostatSetpoint: DONE');	
+	}
+	
+	/**
+	 * Set the min or max setpoint in the setpoint field.
+	 * @param (number) setpoint - the new setpoint as float between 0 - 25.
+	 */
+	function setThermostatSetpointMinMax(setpoint) {
+		console.log('setThermostatSetpointMinMax. setpoint=' + setpoint);
+		$("#datapointtable #datapointsetpoint").val(setpoint);
+	}
+	/**
+	 * Clear the thermostattable and show the default no data message (set in the options).
+	 */
+	function clearThermostatTable() {
+		var oTable = $('#thermostattable').dataTable();
+		oTable.fnClearTable();
+		oTable.fnDraw();		
+	}
+	
+	/**
+	 * Refresh the thermostattable by requesting the datapoints from the ccu.
+	 * The data is requested by submitting url with xml-api statelist cgi script to the ccu.
+	 */
+	function refreshThermostatTable() {
+		// Show toastmessage, style error, loading the table - text, timeout, iserror
+		HideNotify();
+		ShowNotify('Please wait, requesting thermostat data...', 1000, true);
+		// Define the url of the xml-api statelist script (see.ajax > url)
+		var URL_STATELIST = "http://ccu-ip:port/addons/xmlapi/statelist.cgi";
+		console.log("refreshThermostatTable: url=" + URL_STATELIST);
+		// Clear the fields for changing the setpoint
+		clearFields();
+		// Define the datatable
+		var oTable = $('#thermostattable').dataTable();
+		oTable.fnClearTable();
+		oTable.fnDraw();
+		// Using a timer with short delay to show the empty table whilst fetching the data from the ccu
+		var timer, timeout = 150;
+		clearTimeout(timer);
+		timer = setTimeout(function() {		
+			$.ajax({
+				// Request the homematic statelist
+				url: URL_STATELIST,
+				async: false,
+				cache: false,
+				type: "GET",
+				// Datatype must be xml as the statelist.cgi outputs xml tree structure
+				dataType: 'xml',
+				// Parse the data to build the datatable
+				success: function (data) {
+					// console.log(data);
+					// Check if there is data
+					if (typeof data != 'undefined') {
+						// Extract relevant data from XML from node stateList
+						var $devices = $('stateList',data);
+						// console.log(devices);
+						// Loop over the devices xml nodes
+						$devices.find("device").each(function(index, elem){
+							// <device name="Alert Indicator" ise_id="3884" unreach="false" config_pending="false">
+							// 	<channel name="Alert Indicator:0" ise_id="3885" index="0" visible="true" operate="false">
+							// 		<datapoint name="HmIP-RF.000D1BE9A4E733:0.ACTUAL_TEMPERATURE" type="ACTUAL_TEMPERATURE" ise_id="3886" value="0.000000" valuetype="4" valueunit="°C" timestamp="0" operations="5"/>
+							// ...
+							// console.log(elem);
+							// elem = found XML element
+							// Device attributes from xml:
+							// <device name="Alert Indicator" ise_id="3884" unreach="false" config_pending="false">
+							var $device = $(this); 
+							var device_name = $device.attr("name");
+							var device_iseid = $device.attr("ise_id");
+							// console.log(device_name + " = " + device_iseid);
+							// List of device channels
+							// <channel name="Alert Indicator:0" ise_id="3885" index="0" visible="true" operate="false">
+							var $channels = $("channel", elem);
+							// console.log("Channels: " + $channels.length);
+							// List of device channel datapoints
+							// <datapoint name="HmIP-RF.000D1BE9A4E733:0.ACTUAL_TEMPERATURE" type="ACTUAL_TEMPERATURE" ise_id="3886" value="0.000000" valuetype="4" valueunit="°C" timestamp="0" operations="5"/>
+							var temperature = -1;
+							var setpoint = -1;
+							var setpoint_ise_id = -1;
+							var level = -1;
+							var voltage = -1;
+							// Loop over each device channel, i.e., there might be one or more channels
+							$channels.each(function(){
+								var $datapoints = $(this).find("datapoint");
+								// console.log("Datapoints: " + $datapoints.length);
+								// Get the datapoints
+								if ($datapoints.length > 0){
+									// Loop over each datapoint of the channel and get selective attributes
+									$datapoints.each(function(){
+										var $datapoint = $(this);
+										// Select datapoint types ACTUAL_TEMPERATURE, SET_POINT_TEMPERATURE, LEVEL, OPERATING_VOLTAGE
+										var dptype = $datapoint.attr("type");
+										// console.log(dptype);
+										switch (dptype) {
+										  case "ACTUAL_TEMPERATURE":
+											temperature = Number($datapoint.attr("value"));
+											break;
+										  case "SET_POINT_TEMPERATURE":
+											setpoint = Number($datapoint.attr("value"));
+											setpoint_ise_id = Number($datapoint.attr("ise_id"));
+											break;
+										  case "LEVEL":
+											level = Number($datapoint.attr("value")) * 100;
+											break;
+										  case "OPERATING_VOLTAGE":
+											voltage = Number($datapoint.attr("value"));
+											break;
+										  default:
+											// console.log("");
+										}
+										// console.log("X="+ device_name + ": " + temperature + ", " + setpoint + ", " + level + ", " + voltage);
+									});							
+									if (temperature > -1 && setpoint > -1 && level > -1 && voltage > -1){ 
+										// console.log(device_name + ": pv=" + temperature + ", sp=" + setpoint + ", lvl=" + level, + ", v=" + voltage, + ", ise_id=" + setpoint_ise_id); 
+										// Add the datapoint with attributes
+										// index: 0=devicename, 1=setpoint (sp), 2=temperature (pv), 3=delta temperature (dt), 4=level (lvl), 5=voltage (v),6=setpoint ise_id (spiseid)
+										var addId = oTable.fnAddData({
+											// Set the column key:value content for the 7 cols. Note the values are strings to use tofixed() except for spiseid.
+											// If changing the key, check showThermostatTable col check callback i.e., Voltage.
+											"DT_RowId": setpoint_ise_id,
+											"0": device_name,
+											"1": setpoint.toFixed(1),
+											"2": temperature.toFixed(1),
+											"3": (temperature - setpoint).toFixed(1),
+											"4": level.toFixed(0),
+											"5": voltage.toFixed(1),
+											"6": setpoint_ise_id,
+										});
+									}
+									// console.log("CHANNEL DATAPOINTS DONE");
+								}
+							});							
+						});
+					} /* if data not undefined */
+				}, /* success */
+				error: function(data) { 
+					bootbox.alert($.t("[ERROR] No data found. Check URL or CCU!"));
+				} /* error */
+			});
+		}, timeout);
+		
+		/* Add a click handler to the rows - this could be used as a callback */
+		$("#thermostattable tbody").off();
+		$("#thermostattable tbody").on('click', 'tr', function () {
+			if ($(this).hasClass('row_selected')) {
+				$(this).removeClass('row_selected');
+			}
+			else {
+				var oTable = $('#thermostattable').dataTable();
+				oTable.$('tr.row_selected').removeClass('row_selected');
+				$(this).addClass('row_selected');
+				var anSelected = fnGetSelected(oTable);
+				if (anSelected.length !== 0) {
+					// Get selected row data as object
+					// index: 
+					var data = oTable.fnGetData(anSelected[0]);
+					// console.log(data);
+					// Update the values of the datapoint table
+					$("#datapointtable #datapointdevicename").val(data["0"]);	// device name
+					$("#datapointtable #datapointsetpoint").val(data["1"]);		// setpoint
+					$("#datapointtable #datapointise_id").val(data["6"]);		// ise_id setpoint
+				}
+			}
+		});
+		
+	}	/* refresh */
+	/**
+	 * Show the thermostattable.
+	 * Init the table with options foloowed by filling the table with data from the ccu.
+	 * Reference: https://legacy.datatables.net/usage
+	 */
+	function showThermostatTable() {
+		$('#thermostatlistmain').i18n();
+		// Set the datatable options
+		var oTable = $('#thermostattable').dataTable({
+			// Define table control elements to appear on the page and in what order.
+			// <"H" - jQuery UI header show (jQueryUI theme "header" classes)
+			// l - Length menu
+			// f - filter box (which also is floated right)
+			// r - processing display element
+			// C - show Colvis, which are floated right
+			// t - Table
+			// <"F" - jQuery UI footer show (jQueryUI theme "footer" classes)
+			// i - Information
+			// p - Pagination 
+			"sDom": '<"H"lfrC>t<"F"ip>',
+			// Set the columns properties - ensure array length equal number of columns of the HTML table (id=thermostattable). 
+			// null: default values and automatically detected options.
+			// sClass: align the column center. 
+			// Colums hidded: setpoint ise_id.
+			"aoColumns": [ 
+				/* 0=devicename */					null,
+				/* 1=setpoint (sp) */				{ "sClass": "center" },
+				/* 2=temperature (pv) */			{ "sClass": "center" },
+				/* 3=delta temperature (dt) */		{ "sClass": "center" },
+				/* 4=level (lvl) */					{ "sClass": "center" },
+				/* 5=voltage (v) */					{ "sClass": "center" },
+				/* 6=setpoint ise_id (spiseid) */	{ "sClass": "center", "bSearchable": false, "bVisible": false },
+			],
+			// TableTools addon: select only a single row
+			"oTableTools": {
+				"sRowSelect": "single",
+			},
+			"aaSorting": [[0, "asc"]],				// Sort on first col asc
+			"bSortClasses": false,
+			"bProcessing": true,
+			"bStateSave": true,
+			"bJQueryUI": true,
+			"bAutoWidth": false,
+			"aLengthMenu": [
+				[10, 25, -1], 
+				[10, 25, "All"]],
+			"iDisplayLength": 10,					// Number of rows to display on a single page when using pagination.
+			"sPaginationType": "full_numbers",
+			// "language": { "emptyTable": "Please wait, fetching data..." },
+			language: $.DataTableLanguage,
+			
+			// Adding row callback with checks:
+			// Level col 4: if == 100 set cell text color to red.
+			// Voltage col 5: if < 2.5 set cell text color to red.
+			fnRowCallback: function (nRow, aData, iDisplayIndex, iDisplayIndexFull) {
+				// console.log(aData);
+				// The aData is an object JSON array. Example:
+				// Object { 0: "MakeLab", 1: "5.0", 2: "18.4", 3: "13.4", 4: "0", 5: "2.5", 6: 1433, DT_RowId: 1433 }
+				// Check the level col 4 (aData[4]) if equals threshold
+				if (aData[4] == 100) {
+					// Set cell color red
+					$('td', nRow).eq(4).css('color', 'red');
+					// Highlight row color orange. NOT USED just an example
+					// $('td', nRow).css('background-color', 'Orange');
+				} 
+				// Check the voltage col 5 (aData[5]) if below threshold
+				if (aData[5] < 2.5) {
+					// Set cell color red
+					$('td', nRow).eq(5).css('color', 'red');
+					// Highlight row color orange. NOT USED just an example
+					// $('td', nRow).css('background-color', 'Orange');
+				} 
+				// else {
+				// 	$('td', nRow).css('background-color', 'Orange');
+				// }
+			}
+		});
+		// Refresh the table with data from the CCU
+		refreshThermostatTable();
+	}
+	/**
+	 * Document ready = show the thermostattable
+	 */
+	$(document).ready(function() {
+		showThermostatTable();
+	});  
+</script>

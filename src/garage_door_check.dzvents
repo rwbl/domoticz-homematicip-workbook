@@ -1,0 +1,46 @@
+--[[
+File:           garage_door_check.dzvents
+Date:           20220414
+Author:         Robert W.B. Linn
+Trigger:        timer, devices
+Dependencies:   garage_door_monitor.script 
+Description:
+Check daily at 20:00, if the garagedoor is closed. OPTIONAL: Send email notification if open.
+The Alert Device Garagentor is set to GREEN (level 1) or RED (level 4) by Homematic script (trigger Device State Open or Close).
+--]]
+-- IDX of the devices used
+local IDX_GARAGEDOOR_ALERT = 324
+local IDX_MESSAGES_ALERT = 55
+local DOORCLOSED_STATE = 1  -- alert level 1 green
+local DOOROPEN_STATE = 4    -- alert level 4 red
+-- local TIMER_RULE = 'every minute'
+local TIMER_RULE = 'at 20:00'
+-- Logging
+local LOG_MARKER = 'GARAGE_DOOR_CHECK'
+return {
+	on = {
+		timer = { TIMER_RULE },
+		devices = { IDX_GARAGEDOOR_ALERT }
+	},
+    logging = {  
+        level = domoticz.LOG_DEBUG, marker = LOG_MARKER,
+    },
+	execute = function(domoticz, item)
+        -- Check at timestamp if the garagedoor is open
+	    if item.isTimer then
+    		-- Get state garagedoor alert device
+    		local state = domoticz.devices(IDX_GARAGEDOOR_ALERT).nValue
+            domoticz.log(('Garagedoor state: %d'):format(state))
+    		if (state == DOOROPEN_STATE) then
+    		    domoticz.log('Garagedoor is open. Please Close...')
+    		    -- subject,message,mailto
+    		    domoticz.email('Garagentor', 'Das Garagentor ist noch offen. Bitte umgehend schließen.', 'emailaddress')
+            end
+	    end    
+        -- Device is triggered by Homematic, i.e. Garage door has moved.
+        if item.isDevice then
+            -- The state is set by Homematic script according alert level: 1=closed, 4=open
+            domoticz.log( ('Garagentor ist %s (%d).'):format(domoticz.devices(IDX_GARAGEDOOR_ALERT).text, domoticz.devices(IDX_GARAGEDOOR_ALERT).nValue) )
+        end
+    end
+}

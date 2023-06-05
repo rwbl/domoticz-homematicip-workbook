@@ -1,0 +1,260 @@
+<!--
+File:	Homematic_Devicelist.html (custom page located in the domoticz www/templates folder)
+Date:	20230602
+Author:	Robert W.B. Linn
+List in a datatable, all homematic devices with only the device attributes and not the assigned device channels.
+<deviceList>
+	<device name="Alert Indicator" address="000D1BE9A4E733" ise_id="3884" interface="HmIP-RF" device_type="HmIP-MOD-OC8" ready_config="true"></device>
+	<device name="Bad" address="002018A99D2097" ise_id="1786" interface="HmIP-RF" device_type="HmIP-eTRV-B" ready_config="true"></device>
+	...
+</deviceList>
+The device attributes (#6) listed in the datatable columns are:
+[index=attribute ("example")]
+0=name ("Alert Indicator")
+1=address ("000D1BE9A4E733") 
+2=ise_id ("3884")
+3=interface ("HmIP-RF")
+4=device_type ("HmIP-MOD-OC8")
+5=ready_config ("true")
+Notes
+* The devicelist is requested from the CCU using the CCU addon XML-API.
+* The URL for the XML-API devicelist cgi script is defined as constant URL_XMLAPI (set accordingly).
+* ENSURE to clear the browser cache after making changes and loading the page.	
+-->
+<div id="devicelistmain" class="container">
+	<!-- Page title -->
+	<h2 class="page-header" id="pagetitle" data-i18n="Homematic Devicelist"></h2>
+	<!-- 
+		Define the table header with id devicelisttable
+		The headers are the xml-api device attributes in lowercase
+	-->
+    <table class="display" id="devicelisttable" border="0" cellpadding="0" cellspacing="0" width="100%">
+        <thead>
+            <tr>
+				<th align="center" data-i18n="name">name</th>
+				<th align="center" data-i18n="address">address</th>
+				<th align="center" data-i18n="ise_id">ise_id</th>
+				<th align="center" data-i18n="interface">interface</th>
+				<th align="center" data-i18n="device_type">device_type</th>
+				<th align="center" data-i18n="ready_config">ready_config</th>
+            </tr>
+        </thead>		
+    </table>
+	
+	<!--
+		Action buttons
+	-->
+    <table class="display" border="0" cellpadding="0" cellspacing="0" width="100%">
+		<tr>
+			<td align="right">
+				<!-- Refresh the devicelist table by calling the function to refresh the devicelist table -->
+				<a class="btnstyle3" onclick="refreshDevicelistTable();" data-i18n="Refresh"></a>
+			</td>
+		</tr>
+    </table>
+</div>
+<!--
+JAVASCRIPT 
+-->
+<script type="text/javascript" charset="utf-8">
+	/**
+	 * Convert UNIX timestamp to date time string.
+	 * @param (Number) unixtime  Number of seconds since Unix epoch
+	 * @returns (String) YYYY-MM-DD HH:MM:SS 
+	 */
+	function convertUnixTime(unixtime) {
+		var result = "";
+		if (unixtime > 0) {
+			var u = new Date(unixtime * 1000);
+			result = u.getUTCFullYear() +
+				'-' + ('0' + u.getUTCMonth()).slice(-2) +
+				'-' + ('0' + u.getUTCDate()).slice(-2) + 
+				' ' + ('0' + u.getUTCHours()).slice(-2) +
+				':' + ('0' + u.getUTCMinutes()).slice(-2) +
+				':' + ('0' + u.getUTCSeconds()).slice(-2) // +
+				// '.' + (u.getUTCMilliseconds() / 1000).toFixed(3).slice(2, 5) 
+		};
+		return result;
+	};
+	/**
+	 * Clear the table and show no data message as set in the table options.
+	 * @param none
+	 */
+	function clearDevicelistTable() {
+		var oTable = $('#devicelisttable').dataTable();
+		oTable.fnClearTable();
+		oTable.fnDraw();
+		console.log('clearDevicelistTable: DONE');
+	}
+	
+	/**
+	 * Refresh the devicelisttable by requesting the datapoints from the ccu.
+	 * The data is requested by submitting url with xml-api devicelist cgi script to the ccu.
+	 * http://ccu-ip/addons/xmlapi/devicelist.cgi
+	 * @param none
+	 * @returns (Array) Device array with device objects containing the device attributes.
+	 * {"name":device_name,"address":device_address,"ise_id":device_ise_id,"interface":device_interface,"device_type":device_type}
+	 */
+	function refreshDevicelistTable() {
+	
+		// Show toastmessage, style error, loading the table - text, timeout, iserror
+		HideNotify();
+		ShowNotify('Please wait, requesting data...', 1000, true);
+		// Define the url of the xml-api devicelist scripts (see.ajax > url)
+		// [TODO] Define as a config variable
+		var URL_XMLAPI = "http://ccu-ip:port/addons/xmlapi/devicelist.cgi";
+		console.log("refreshDevicelistTable: url=" + URL_XMLAPI);
+		// The device array with device object is returned.
+		// This is used as a test for future custompage(s) showing the devices and select their datapoints (device statelist).
+		deviceArray = [];
+		// Define the datatable
+		var oTable = $('#devicelisttable').dataTable();
+		oTable.fnClearTable();
+		oTable.fnDraw();
+		// Using a timer with short delay to show the empty table whilst fetching the datapoints from the ccu
+		var timer, timeout = 150;
+		clearTimeout(timer);
+		timer = setTimeout(function() {		
+			$.ajax({
+				// Request the devicelist
+				url: URL_XMLAPI,
+				async: false,
+				// Datatype must be xml as the devicelist.cgi outputs xml tree structure
+				dataType: 'xml',
+				// Parse the data to build the datatable
+				success: function (data) {
+					// console.log(data);
+					// Check if there is data
+					if (typeof data != 'undefined') {
+					
+						// Extract relevant data from XML from root node deviceList
+						var $devices = $('deviceList',data);
+						// console.log($devices);
+						// Loop over the devices xml nodes
+						$devices.find("device").each(function(index, elem){
+							//<deviceList>
+							//	<device name="Alert Indicator" address="000D1BE9A4E733" ise_id="3884" interface="HmIP-RF" device_type="HmIP-MOD-OC8" ready_config="true"></device>
+							//	<device name="Bad" address="002018A99D2097" ise_id="1786" interface="HmIP-RF" device_type="HmIP-eTRV-B" ready_config="true"></device>
+							// ...
+							// console.log(elem);
+							// elem = found XML element
+							// Device attributes from xml:
+							// <device name="Alert Indicator" ise_id="3884" unreach="false" config_pending="false">
+							var $device = $(this); 
+							var device_name = $device.attr("name");
+							var device_address = $device.attr("address");
+							var device_ise_id = $device.attr("ise_id");
+							var device_interface = $device.attr("interface");
+							var device_type = $device.attr("device_type");
+							var device_ready_config = $device.attr("ready_config");
+							// console.log("name=" + device_name + ",ise_id=" + device_ise_id + ",device_type=" + device_type );
+							// name,address,ise_id,interface,device_type,ready_config
+							var addId = oTable.fnAddData({
+								"DT_RowId": device_ise_id,
+								"DT_DeviceType": device_type,
+								// Set the column data - NOT USED just an example
+								/*
+								"name": device_name,
+								"address": device_address,
+								"ise_id": device_ise_id,
+								"interface": device_interface,
+								"device_type": device_type,
+								"ready_config": device_ready_config,
+								*/
+								// Set the column content for the 6 cols (ensure to align with table header)
+								"0": device_name,
+								"1": device_address,
+								"2": device_ise_id,
+								"3": device_interface,
+								"4": device_type,
+								"5": device_ready_config
+							});
+							deviceArray.push({"name":device_name,"address":device_address,"ise_id":device_ise_id,"interface":device_interface,"device_type":device_type});
+						});
+						console.log(deviceArray);
+					} /* if data not undefined */
+				}, /* success */
+				error: function(data) { 
+					bootbox.alert($.t("[ERROR] No data found. Check URL or CCU!"));
+				} /* error */
+			});
+		}, timeout);
+		/* Add a click handler to the rows - this could be used as a callback */
+		$("#devicelisttable tbody").off();
+		$("#devicelisttable tbody").on('click', 'tr', function () {
+			if ($(this).hasClass('row_selected')) {
+				$(this).removeClass('row_selected');
+			}
+			else {
+				var oTable = $('#devicelisttable').dataTable();
+				oTable.$('tr.row_selected').removeClass('row_selected');
+				$(this).addClass('row_selected');
+				var anSelected = fnGetSelected(oTable);
+				if (anSelected.length !== 0) {
+					// Get selected row data as object
+					// index: 0=name,1=address,2=ise_id,3=interface,4=device_type,5=ready_config
+					var data = oTable.fnGetData(anSelected[0]);
+					// console.log(data);
+					// Do someting with the data
+				}
+			}
+		});
+		console.log('refreshDevicelistTable: DONE')
+		return deviceArray;
+	}
+	/**
+	 * Show the devicelisttable.
+	 * Reference: https://legacy.datatables.net/usage.
+	 */
+	function showDevicelistTable() {
+		$('#devicelistmain').i18n();
+		// Set the datatable options
+		var oTable = $('#devicelisttable').dataTable({
+			// Define table control elements to appear on the page and in what order.
+			// <"H" - jQuery UI header show (jQueryUI theme "header" classes)
+			// l - Length menu
+			// f - filter box (which also is floated right)
+			// r - processing display element
+			// C - show Colvis, which are floated right
+			// t - Table
+			// <"F" - jQuery UI footer show (jQueryUI theme "footer" classes)
+			// i - Information
+			// p - Pagination 
+			"sDom": '<"H"lfrC>t<"F"ip>',
+			// Set the columns visibility - ensure array length equal number of columns of the HTML table (id=devicelisttable). 
+			// 'null' - default values and automatically detected options.
+			// Colums hidded are ready_config
+			"aoColumns": [ 
+				/* name */ null,
+				/* address */ null,
+				/* ise_id */ null,
+				/* interface */ null,
+				/* device_type */ null,
+				/* ready_config */ { "bSearchable": false, "bVisible": false },
+			],
+			// TableTools addon: select only a single row
+			"oTableTools": {
+				"sRowSelect": "single",
+			},
+			"aaSorting": [[0, "asc"]],
+			//"aaSorting": [[0, "desc"]],
+			"bSortClasses": false,
+			"bProcessing": true,
+			"bStateSave": true,
+			"bJQueryUI": true,
+			"aLengthMenu": [[25, 50, 100, -1], [25, 50, 100, "All"]],
+			"iDisplayLength": 25,					// Number of rows to display on a single page when using pagination.
+			"sPaginationType": "full_numbers",
+			// "language": { "emptyTable": "Please wait, fetching data..."},
+			language: $.DataTableLanguage
+		});
+		// Refresh the table with data from the CCU
+		refreshDevicelistTable();
+	}
+	/**
+	 * Document ready = show the devicelisttable
+	 */
+	$(document).ready(function() {
+	  showDevicelistTable();
+	});  
+</script>
