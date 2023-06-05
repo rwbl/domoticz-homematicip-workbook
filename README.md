@@ -21,19 +21,21 @@ There are two key chapters:
 
 Functions with Homematic IP devices:
 
-* Alert Indicator (HmIP-MOD-OC8, Receiver and switching module with 8 open-collector switching outputs, kit).
-* Battery Check (All HmIP-Devices).
-* Coffee Machine Monitor (HmIP-PSM, Pluggable Switch and Meter).
-* E-Paper Status Display (HmIP-WRCD, Wall-mount Remote Control with status display, kit).
-* Garage Door Monitor (HmIP-SWDM, Window / Door Contact - magnet).
-* Heating Unit Gas Usage (HmIP-FCI1, Contact Interface flush-mount, 1 channel ).
-* Heating Unit Temperature (HmIP-STE2-PCB, 2-channel-Temperature Sensor ).
-* HM-RC-19 = CUx Daemon (CUx-D), interface between CCU-Logic (ReGa HSS) and external (incl. virtual) devices.
-* Duty-Cycle Monitor (HmIP-CCU3 Device Object).
-* Pluggable Switch and Meter (HmIP-PSM, Pluggable Switch and Meter).
-* Postbox Notifier (HmIP-SWDO, Window / Door Contact optical).
-* Radiator Thermostats (HmIP-eTRV-B/eTRV-2).
-* Remote Control (HmIP-RC8, Remote Control with 8 buttons).
+* Alert Indicator (HmIP-MOD-OC8)
+* Battery Check (HmIP All Devices)
+* Coffee Machine Monitor (HmIP-PSM)
+* Custom Pages (HmIP-CCU3)
+* Duty-Cycle Monitor (HmIP-CCU3)
+* E-Paper Status Display (HmIP-WRCD)
+* Garage Door Monitor (HmIP-SWDM)
+* Heating Unit Gas Usage (HmIP-FCI1)
+* Heating Unit Temperature (HmIP-STE2-PCB)
+* Pluggable Switch and Meter (HmIP-PSM)
+* Postbox Notifier (HmIP-SWDO)
+* Remote Control (HmIP-RC8)
+* Statelist Node-RED (HmIP All Devices)
+* Thermostat Control (HmIP-eTRV)
+* Thermostat Custom Page (HmIP-eTRV)
 
 ### Domoticz
 * The devices to control Homematic devices are mainly virtual devices (Hardware type "Dummy").
