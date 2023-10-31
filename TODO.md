@@ -38,11 +38,11 @@ To measure the temperature and humidity in outdoor areas.
 ### Status
 Not started.
 
-## NEW: Explore advanced usage of the CuxD.
+## NEW: Explore Advanced Usage CuxD.
 ### Status
 Not started.
 
-## UPD: e-Paper Display Special Chracters
+## UPD: e-Paper Display Special Characters
 How to display the character used to display a special character.
 Example how to display the "[ or ]" characters.
 ### Status
@@ -55,9 +55,23 @@ Not started.
 
 ## Custom Pages
 * Explore buttons 'copy', 'csv' and other.
-* Shownotify Toastmessage immediate in foreground instead of background
+* Show notify Toastmessage immediate in foreground instead of background
 * Dialog textarea containing a datapoint with attributes
 * Test foreach over table rows
 * Page to run a specific program using XML-API runprogram.cgi?program_id=1234 and capture the output
+### Status
+Not started.
+
+## NEW: Pluggable Switch Timer
+Use a timer, in dzVents, to set the start & stop time of a pluggable switch.
+This could be used to control a Domoticz Dashboard System to maintain the battery.
+### Status
+Not started.
+
+## NEW: Explore Dashboards
+Explore alternative dashboards for Domoticz. 
+[Dashtics](https://www.domoticz.com/wiki/Dashticz)
+[HomeHabit Dashboard](https://play.google.com/store/apps/details?id=app.homehabit.view&hl=gsw&gl=US)
+
 ### Status
 Not started.
