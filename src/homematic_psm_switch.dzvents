@@ -9,20 +9,22 @@ Switch a PSM ON or OFF via a Domoticz On/Off switch using the Homematic addon XM
 The datapoint ise_id is required for the attributes STATE.
 These can be obtained from the XML-API statelist script: 
 HTTP Request:
-http://ccu-ip/addons/xmlapi/statelist.cgi.
+http://ccu-ip/addons/xmlapi/statelist.cgi?sid=[TOKEN_ID].
 HTTP Response:
 Lookup for the PSM device name, idc MakeLAB PSM and get the datapoint for attribute STATE.
 Instead lookup for the device name, search for the channel "0001D3C99C6AB3:3" (as taken from the Homematic WebUI > Devices)
 <datapoint name="HmIP-RF.0001D3C99C6AB3:3.STATE" type="STATE" ise_id="1485" value="true" valuetype="2" valueunit="" timestamp="1684836557" operations="7"/>
 The datapoint id is 1485.
+
 The state of the datapoint is set by running the state XML-API statechange.cgi script:
 HTTP Request:
-http://ccu-ip/addons/xmlapi/statechange.cgi?ise_id=1485&new_value=false
+http://ccu-ip/addons/xmlapi/statechange.cgi?sid=[TOKEN_ID]&ise_id=1485&new_value=false
 HTTP Response:
 <result><changed id="1485" new_value="false"/></result>
 These are obtained by dzVents using XPath.
 Example
 local new_value = domoticz_applyXPath(item.data, '//changed[@id="1485"]/@new_value')
+
 Domoticz Log
 2023-05-23 13:41:08.189 VirtualSensors: Light/Switch (MakeLab PSM Switch)
 2023-05-23 13:41:08.186 Status: User: admin (IP: 192.168.1.94) initiated a switch command (16/MakeLab PSM Switch/Off)
@@ -47,14 +49,17 @@ Domoticz Log
 2023-05-23 13:41:10.514 Status: dzVents: Info: PSM-MAKELAB-SWITCH: Device state changed. new_value=true
 2023-05-23 13:41:10.514 Status: dzVents: Info: PSM-MAKELAB-SWITCH: ------ Finished homematic_psm_switch_xml-api 
 ]]--
+
 -- Define the IDX of the Domoticz switch device with switch type On/Off just for tests instead of the timer
 local IDX_SWITCH = 16
 local IDX_PSM_MAKELAB = 58
 local DATAPOINT_ISE_ID = 1485
+
 -- Define the XML-API URL to set the datapoint new value for the switch state
-local URL_XMLAPI = 'http://ccu-ip:port/addons/xmlapi/statechange.cgi?ise_id=#ID#&new_value=#STATE#'
+local URL_XMLAPI = 'http://192.168.1.70/addons/xmlapi/statechange.cgi?sid=[TOKEN_ID]&ise_id=#ID#&new_value=#STATE#'
 -- HTTP Response - MUST be UNIQUE across all events - USE res-device-type-location
 local RES_XMLAPI = 'RES-PSM-SWITCH-MAKELAB'
+
 -- Set the homematic psm switch state to true (on) or false (off)
 local function set_state(domoticz, state)
     local url = URL_XMLAPI
@@ -63,6 +68,7 @@ local function set_state(domoticz, state)
     url = string.gsub(url, "#STATE#", state)
 	domoticz.openURL({ url = url, method = 'GET', callback = RES_XMLAPI })
 end
+
 return {
 	on = {
 		devices = { IDX_SWITCH },       -- Handle state change of the switch
@@ -72,10 +78,12 @@ return {
 		level = domoticz.LOG_INFO, marker = RES_XMLAPI,
 	},
 	execute = function(domoticz, item)
+
         -- Check the trigger switch change or timer. Sent HTTP POST request to the CCU.
 		if (item.isDevice) then
 		    set_state(domoticz, item.state)
 		end
+
         -- Handle the HTTP Remote Homematic Script API response
 		if (item.isHTTPResponse) then
             -- domoticz.log(item)
@@ -92,5 +100,6 @@ return {
 				domoticz.log(item, domoticz.LOG_ERROR)
 			end
 		end
+
 	end
 }

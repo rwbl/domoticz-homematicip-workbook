@@ -10,22 +10,25 @@ Get the PSM device attributes POWER and ENERGY_COUNTER using the Homematic addon
 The datapoint ise_id is required for the attributes POWER and ENERGY_COUNTER.
 These can be obtained from the XML-API statelist script: 
 HTTP Request:
-http://ccu-ip/config/xmlapi/statelist.cgi.
+http://ccu-ip/config/xmlapi/statelist.cgi?sid=[TOKEN_ID].
 HTTP Response:
 Lookup for the PSM device name, idc MakeLAB PSM and get the datapoints for the selected attributes POWER and ENERGY_COUNTER.
 <datapoint name="HmIP-RF.0001D3C99C6AB3:6.ENERGY_COUNTER" type="ENERGY_COUNTER" ise_id="1503" value="9723.600000" valuetype="4" valueunit="Wh" timestamp="1684765133" operations="5"/>
 <datapoint name="HmIP-RF.0001D3C99C6AB3:6.POWER" type="POWER" ise_id="1507" value="54.110000" valuetype="4" valueunit="W" timestamp="1684765133" operations="5"/>
 The datapoint ids are: 1503 and 1507.
+
 The values of the two datapoints is requeted using the XML-API state.cgi script:
 HTTP Request:
-http://ccu-ip:port/addons/xmlapi/state.cgi?datapoint_id=1503,1507
+http://192.168.1.70/addons/xmlapi/state.cgi?sid=[TOKEN_ID]&datapoint_id=1503,1507
 HTTP Response:
 <state><datapoint ise_id="1503" value="9724.600000"/><datapoint ise_id="1507" value="71.540000"/></state>
+
 The HTTP response contains an XML tree with the two datapoints.
 These are obtained by dzVents using XPath.
 Example
 local power = domoticz_applyXPath(item.data, '//datapoint[@ise_id=1503]/@value')
 local energycounter = domoticz_applyXPath(item.data, '//datapoint[@ise_id=1507]/@value')
+
 Domoticz Log
 2023-05-22 16:38:44.136 Status: dzVents: Write file: /home/pi/domoticz/scripts/dzVents/generated_scripts/homematic_psm_electricity_xml-api.lua
 2023-05-22 16:40:00.092 Status: dzVents: Info: PSM-MAKELAB: ------ Start internal script: homematic_psm_electricity_xml-api:, trigger: "every 5 minutes"
@@ -39,22 +42,27 @@ Domoticz Log
 2023-05-22 16:40:00.188 Status: dzVents: Info: PSM-MAKELAB: ------ Finished homematic_psm_electricity_xml-api
 2023-05-22 16:40:00.188 Status: EventSystem: Script event triggered: /home/pi/domoticz/dzVents/runtime/dzVents.lua 
 ]]--
+
 -- Define the IDX of the Domoticz switch device with switch type On/Off just for tests instead of the timer
 local IDX_SWITCH = 16
 local IDX_PSM_MAKELAB = 58
+
 -- Define the XML-API URL to get the datapoint values.
-local URL_HMAPI = 'http://ccu-ip:port/addons/xmlapi/state.cgi?datapoint_id=1503,1507'
+local URL_HMAPI = 'http://192.168.1.70/addons/xmlapi/state.cgi?sid=[TOKEN_ID]&datapoint_id=1503,1507'
 -- HTTP Response - MUST be UNIQUE across all events
 local RES_HMAPI = 'PSM-MAKELAB'
+
 -- Set device Electric Instant+Counter Power + Energy value.
 local function set_psm_device(domoticz, idx, power, energycounter)
     -- Updating idx=58 with value NNN
     domoticz.log(('Updating name=%s, idx=%s with power=%s, energycounter=%s'):format(domoticz.devices(idx).name, idx, tostring(power), tostring(energycounter)))
     domoticz.devices(idx).updateElectricity(power, energycounter)
 end
+
 -- Define the timer rule
 local TIMERRULE = 'every 5 minutes'
 -- local TIMERRULE = 'every minute'    -- Tests
+
 return {
 	on = {
 		devices = { IDX_SWITCH },       -- switch for tests
@@ -66,6 +74,7 @@ return {
 		marker = RES_HMAPI,
 	},
 	execute = function(domoticz, item)
+
         -- Check the trigger switch change or timer. Sent HTTP POST request to the CCU.
 		if (item.isDevice) or (item.isTimer) then
 			domoticz.openURL({
@@ -75,6 +84,7 @@ return {
 				callback = RES_HMAPI,
 			})
 		end
+
         -- Handle the HTTP Remote Homematic Script API response
 		if (item.isHTTPResponse) then
             -- domoticz.log(item)
@@ -92,5 +102,6 @@ return {
 				domoticz.log(item, domoticz.LOG_ERROR)
 			end
 		end
+
 	end
 }

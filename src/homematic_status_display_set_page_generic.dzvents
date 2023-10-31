@@ -10,6 +10,7 @@ There are 3 triggers:
 Customevent - Homematic - Handles the channel data: {"channel":"HmIP-WRCD 002A5D8989D599:2","buttonnr":2}
 Timer - Domoticz - Updates the selected page in regular intervals
 Selector Switch - Domoticz - Select a page (do not switch to fast between pages, the device needs time to update)
+
 Page Configuration
 The pages are defined in a lua table array with elements describing each page.
 n - Page Number = 1,2
@@ -24,6 +25,7 @@ rowN - describes the rows N 1-5
 	bc - Background color WHITE or BLACK (optional)
 	tc - Text color WHITE or BLACK (optional)
 The last row holds the commit command DDC=true.
+
 The display is updated by submitting an HTTP XML-API GET request to the CCU to update the system variable "StatusDisplayCombinedParameter" (sysvar ise_id 5097).
 Example data: {DDBC=BLACK,DDTC=WHITE,DDI=0,DDA=CENTER,DDS=WETTER,DDID=1},{DDBC=WHITE,DDTC=BLACK,DDI=0,DDA=LEFT,DDS= T C: 16.4,DDID=2},{DDBC=WHITE,DDTC=BLACK,DDI=0,DDA=LEFT,DDS= RH %: 77,DDID=3},{DDBC=WHITE,DDTC=BLACK,DDI=10,DDA=LEFT,DDS= P hPa: 1016,DDID=4},{DDBC=WHITE,DDTC=BLACK,DDI=0,DDA=CENTER,DDS=23.05 14:00,DDID=5,DDC=true} 
 In the URL submitted, the new_value characters comma and space have to be encoded by %2C and %20.
@@ -31,14 +33,17 @@ The sysvar holds the channel attribute COMBINED_PARAMETER.
 The CCU program "Status Display Update" runs when the sysvar 5097 gets updated.
 The script assigned to the CCU program, updates the HmIP-WRCD device state with the COMBINED_PARAMETER content.
 ]]--
+
 -- Domoticz selector switch to select a page - page 1=level 10,page 2=level 20
 local IDX_STATUSDISPLAYPAGE = 371
+
 -- Set the combined parameter via the sysvar which triggers an homematic script to update the hmip-wrcd
-local HTTP_REQ = 'http://ccu-ip:port/addons/xmlapi/statechange.cgi?ise_id=5097&new_value='
+local HTTP_REQ = 'http://192.168.1.70/addons/xmlapi/statechange.cgi?sid=[TOKEN_ID]&ise_id=5097&new_value='
 -- HTTP unique response
 local HTTP_RES = 'HMSTATUSDISPLAY'
 -- Custom event triggered by the homematic script
 local CUSTOMEVENT = 'homematic_status_display_set_page'
+
 -- Define the devices for the pages
 local MAXPAGES = 2
 -- idx=0 - device not used; icon=0 - no icon; text=space - delete line; text can be used to set prefix info.
@@ -47,14 +52,18 @@ local pages = {
     {nr = 2, row1={text='Wetter',idx=0,icon=0,bc='BLACK',tc='WHITE'}, row2={text='Temp: ',idx=344,icon=0,index=1,align='CENTER'}, row3={text='Feuchte: ',idx=344,icon=0,index=2}, row4={text='Druck: ',idx=116,icon=0},row5={text='#DATE#',idx=0,icon=0}, state = true},
     {nr = 3, row1={text='Information',idx=0,icon=0,bc='BLACK',tc='WHITE'}, row2={text='#NAME#: ',idx=82,icon=0}, row3={text='#DATETIME#',idx=0,icon=0}, row4={text='#TIME#',idx=0,icon=0},row5={text='#DATE#',idx=0,icon=0}, state = false},
     }
+
 -- Define the combined parameter with placeholders for Icon(DDI),Text(DDS),Row(DDID). DDC is true to commit.
 local CMDROW = '{DDBC=#DDBC#,DDTC=#DDTC#,DDI=#DDI#,DDA=#DDA#,DDS=#DDS#,DDID=#DDID#}'
 local CMDDDC = ',DDC=true}'
+
 -- Timer rule updating the page selected
 local TIMERRULE = 'at 07:30'
+
 --
 -- FUNCTIONS
 --
+
 -- Helper - Return the date time in format DD-MM HH:MM with leading zeros - 29-05 11:19
 function getDateTimeShort(domoticz)
     return ('%s.%s %s:%s'):format(
@@ -63,12 +72,14 @@ function getDateTimeShort(domoticz)
         string.format("%02d", domoticz.time.hour), 
         string.format("%02d", domoticz.time.minutes))
 end
+
 function getDate(domoticz)
     return ('%s.%s.%s'):format(
         string.format("%02d", domoticz.time.day), 
         string.format("%02d", domoticz.time.month), 
         string.format("%02d", domoticz.time.year))
 end
+
 -- Set the combined parameter for a row
 local function setRow(domoticz, rownr, rowdata)
     local rowstr = CMDROW   -- Command string with palceholder
@@ -111,6 +122,7 @@ local function setRow(domoticz, rownr, rowdata)
     rowstr = rowstr .. ','
     return rowstr
 end
+
 -- Set the display page with 5 rows.
 -- The data is taken from the global table pages.
 -- The data for the last row is amended with the commit command DDC=true.
@@ -139,6 +151,7 @@ local function setPage(domoticz, pagenr)
         end
     end
 end
+
 -- MAIN
 return {
 	on = {
@@ -149,6 +162,7 @@ return {
 	},
 	data = { pageSelected = { initial = 0 } },
 	logging = {},
+
 	execute = function(domoticz, triggeredItem)
         -- domoticz.log(domoticz.data)
         -- Homematic script trigger
@@ -156,20 +170,24 @@ return {
 		    domoticz.data.pageSelected = triggeredItem.json.buttonnr
             setPage(domoticz, domoticz.data.pageSelected)
 	    end
+
 	    -- Update the display depending page with the device items (group)
 		if (triggeredItem.isTimer) then
             setPage(domoticz, domoticz.data.pageSelected)
         end
+
 	    -- Update the display depending page selected from the page selector switch
 		if (triggeredItem.isDevice and triggeredItem.idx == IDX_STATUSDISPLAYPAGE) then
             -- Convert the selector switch level 0,10,20... to 0,1,2...
 		    domoticz.data.pageSelected = math.floor(triggeredItem.rawData[1] * 0.1)
             setPage(domoticz, domoticz.data.pageSelected)
         end
+
         if (triggeredItem.isHTTPResponse and triggeredItem.trigger == HTTP_RES) then
             if (triggeredItem.ok) then
                 -- domoticz.log(triggeredItem.data)
             end
         end
+
     end
 }
