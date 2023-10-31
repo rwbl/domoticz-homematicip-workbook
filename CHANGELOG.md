@@ -1,5 +1,8 @@
 # ChangeLog domoticz-homematicip-workbook
 
+## 20231031
+* UPD: XML-API addon - New security access token as from XML-API v2.2
+
 ## 20230605
 * NEW: Function Custom  Pages - Various jQuery DataTables embedded in Domoticz custom pages, like device statelist, devicelist, statelist, roomlist.
 * NEW: Function Pluggable Switch and Meter (HmIP-PSM) - PSM Switch, PSM Power & Energy, PSM Power Monitor.
